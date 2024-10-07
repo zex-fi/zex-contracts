@@ -44,8 +44,7 @@ describe("UserDepositFactory", function () {
         it("Should predict the correct address", async function () {
             const bytecode = await factory.getBytecode(
                 await factory.defaultAdminAddress(),
-                await factory.operatorAddress(),
-                await factory.toAddress()
+                await factory.getAddress()
             );
 
             const computedAddress = ethers.getCreate2Address(
@@ -115,13 +114,6 @@ describe("UserDepositFactory", function () {
                 await userDeposit.hasRole(
                     await userDeposit.DEFAULT_ADMIN_ROLE(),
                     defaultAdmin.address
-                )
-            ).to.be.true;
-
-            expect(
-                await userDeposit.hasRole(
-                    await userDeposit.OPERATOR_ROLE(),
-                    operator.address
                 )
             ).to.be.true;
         });

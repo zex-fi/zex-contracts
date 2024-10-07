@@ -60,6 +60,10 @@ const config: HardhatUserConfig = {
             url: `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY}`,
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
         },
+        holesky: {
+            url: `https://holesky.infura.io/v3/${process.env.INFURA_API_KEY}`,
+            accounts: [process.env.NEW_MAIN_DEPLOYER!],
+        },
         mainnet: {
             url: `https://ethereum.publicnode.com`,
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
@@ -121,7 +125,8 @@ const config: HardhatUserConfig = {
             celo: process.env.CELO_API_KEY!,
             frax: process.env.FRAX_API_KEY!,
             metal: process.env.MEAL_API_KEY!,
-            sepolia: process.env.ETHERSCAN_API_KEY!
+            sepolia: process.env.ETHERSCAN_API_KEY!,
+            holesky: process.env.ETHERSCAN_API_KEY!
         },
         customChains: [
             {

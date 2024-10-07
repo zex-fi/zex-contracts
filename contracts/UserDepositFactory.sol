@@ -8,33 +8,38 @@ import "hardhat/console.sol";
 contract UserDepositFactory is AccessControl{
 
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
+    bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
 
     error ZeroAddress();
 
-    event Deployed(address addr, uint256 salt);
+    event Deployed(address indexed addr, uint256 salt);
+    event VaultSet(address indexed vault);
 
     address public defaultAdminAddress;
-    address public operatorAddress;
-    address public toAddress;
+    address public vault;
 
-     constructor(address deployer, address defaultAdmin, address operator, address to) {
+     constructor(address deployer_, address defaultAdmin_, address operator_, address vault_) {
          if (
-             deployer == address(0) ||
-             defaultAdmin == address(0) ||
-             operator == address(0) ||
-             to == address(0)
+             deployer_ == address(0) ||
+             defaultAdmin_ == address(0) ||
+             operator_ == address(0) ||
+             vault_ == address(0)
          ) revert ZeroAddress();
 
-         _grantRole(DEFAULT_ADMIN_ROLE, deployer);
-        _grantRole(DEPLOYER_ROLE, deployer);
+         _grantRole(DEFAULT_ADMIN_ROLE, deployer_);
+         _grantRole(DEPLOYER_ROLE, deployer_);
+         _grantRole(OPERATOR_ROLE, operator_);
 
-         defaultAdminAddress = defaultAdmin;
-         operatorAddress = operator;
-         toAddress = to;
+         defaultAdminAddress = defaultAdmin_;
+
+         _grantRole(SETTER_ROLE, msg.sender);
+         setVault(vault_);
+         _revokeRole(SETTER_ROLE, msg.sender);
      }
 
     function deploy(uint256 salt) external onlyRole(DEPLOYER_ROLE) returns (address userDepositAddress) {
-        bytes memory bytecode = getBytecode(defaultAdminAddress, operatorAddress, toAddress);
+        bytes memory bytecode = getBytecode(defaultAdminAddress, address(this));
 
         // using inline assembly: load data and length of data, then call CREATE2.
         assembly { // solhint-disable-line
@@ -58,7 +63,7 @@ contract UserDepositFactory is AccessControl{
         uint256 salt
     ) public view returns (address) {
         // Get the bytecode of the contract to be deployed, including constructor arguments
-        bytes memory bytecode = getBytecode(defaultAdminAddress, operatorAddress, toAddress);
+        bytes memory bytecode = getBytecode(defaultAdminAddress, address(this));
 
         // Compute the address using CREATE2 formula
         bytes32 hash = keccak256(
@@ -74,13 +79,17 @@ contract UserDepositFactory is AccessControl{
         return address(uint160(uint256(hash)));
     }
 
-
     function getBytecode(
-        address defaultAdmin,
-        address operator,
-        address to
+        address defaultAdmin_,
+        address vault_
     ) public pure returns (bytes memory) {
         bytes memory bytecode = type(UserDeposit).creationCode;
-        return abi.encodePacked(bytecode, abi.encode(defaultAdmin, operator, to));
+        return abi.encodePacked(bytecode, abi.encode(defaultAdmin_, vault_));
+    }
+
+    function setVault(address vault_) public onlyRole(SETTER_ROLE) {
+        if (vault_ == address(0)) revert ZeroAddress();
+        vault = vault_;
+        emit VaultSet(vault_);
     }
 }
