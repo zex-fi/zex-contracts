@@ -32,14 +32,11 @@ contract UserDepositFactory is AccessControl{
          _grantRole(OPERATOR_ROLE, operator_);
 
          defaultAdminAddress = defaultAdmin_;
-
-         _grantRole(SETTER_ROLE, msg.sender);
-         setVault(vault_);
-         _revokeRole(SETTER_ROLE, msg.sender);
+         _setVault(vault_);
      }
 
     function deploy(uint256 salt) external onlyRole(DEPLOYER_ROLE) returns (address userDepositAddress) {
-        bytes memory bytecode = getBytecode(defaultAdminAddress, address(this));
+        bytes memory bytecode = getBytecode();
 
         // using inline assembly: load data and length of data, then call CREATE2.
         assembly { // solhint-disable-line
@@ -62,16 +59,13 @@ contract UserDepositFactory is AccessControl{
     function getDeploymentAddress(
         uint256 salt
     ) public view returns (address) {
-        // Get the bytecode of the contract to be deployed, including constructor arguments
-        bytes memory bytecode = getBytecode(defaultAdminAddress, address(this));
-
         // Compute the address using CREATE2 formula
         bytes32 hash = keccak256(
             abi.encodePacked(
                 bytes1(0xff),
                 address(this),
                 salt,
-                keccak256(bytecode)
+                keccak256(getBytecode())
             )
         );
 
@@ -79,15 +73,16 @@ contract UserDepositFactory is AccessControl{
         return address(uint160(uint256(hash)));
     }
 
-    function getBytecode(
-        address defaultAdmin_,
-        address vault_
-    ) public pure returns (bytes memory) {
-        bytes memory bytecode = type(UserDeposit).creationCode;
-        return abi.encodePacked(bytecode, abi.encode(defaultAdmin_, vault_));
+    function getBytecode() public view returns (bytes memory) {
+        bytes memory code = type(UserDeposit).creationCode;
+        return abi.encodePacked(code, abi.encode(defaultAdminAddress, address(this)));
     }
 
-    function setVault(address vault_) public onlyRole(SETTER_ROLE) {
+    function setVault(address vault_) external onlyRole(SETTER_ROLE) {
+        _setVault(vault_);
+    }
+
+    function _setVault(address vault_) internal{
         if (vault_ == address(0)) revert ZeroAddress();
         vault = vault_;
         emit VaultSet(vault_);

@@ -42,10 +42,7 @@ describe("UserDepositFactory", function () {
         });
 
         it("Should predict the correct address", async function () {
-            const bytecode = await factory.getBytecode(
-                await factory.defaultAdminAddress(),
-                await factory.getAddress()
-            );
+            const bytecode = await factory.getBytecode();
 
             const computedAddress = ethers.getCreate2Address(
                 await factory.getAddress(),
