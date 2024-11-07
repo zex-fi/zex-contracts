@@ -5,9 +5,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./UserDepositFactory.sol";
 
-contract UserDeposit is AccessControl {
+contract UserDeposit is AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
@@ -49,7 +50,7 @@ contract UserDeposit is AccessControl {
     }
 
     // Function to transfer ERC20 tokens
-    function transferERC20(address _token, uint256 _amount) external isOperator(msg.sender) {
+    function transferERC20(address _token, uint256 _amount) external isOperator(msg.sender) nonReentrant {
         if (_amount == 0) revert InvalidAmount();
 
         IERC20 token = IERC20(_token);
@@ -61,7 +62,7 @@ contract UserDeposit is AccessControl {
     }
 
     // Function to transfer ERC721 tokens
-    function transferERC721(address _token, uint256 _tokenId) external isOperator(msg.sender) {
+    function transferERC721(address _token, uint256 _tokenId) external isOperator(msg.sender) nonReentrant {
         IERC721 token = IERC721(_token);
         if (token.ownerOf(_tokenId) != address(this)) revert ContractNotTokenOwner();
 
@@ -87,7 +88,7 @@ contract UserDeposit is AccessControl {
     receive() external payable {}
 
     // Function to allow the contract to receive ERC721 tokens
-    function onERC721Received(address, address, uint256, bytes memory) public virtual returns (bytes4) {
+    function onERC721Received(address, address, uint256, bytes memory) public pure returns (bytes4) {
         return this.onERC721Received.selector;
     }
 
