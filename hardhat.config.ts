@@ -72,6 +72,10 @@ const config: HardhatUserConfig = {
             url: `https://bsc.rpc.blxrbdn.com`,
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
         },
+        bsctest: {
+            url: `https://bsc-testnet-rpc.publicnode.com`,
+            accounts: [process.env.NEW_MAIN_DEPLOYER!],
+        },
         polygon: {
             url: `https://polygon-rpc.com/`,
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
@@ -119,6 +123,7 @@ const config: HardhatUserConfig = {
     etherscan: {
         apiKey: {
             polygon: process.env.POLYGON_API_KEY!,
+            arbitrum: process.env.ARBITRUTRY_API_KEY!,
             blast: process.env.BLAST_API_KEY!,
             base: process.env.BASE_API_KEY!,
             optimisticEthereum: process.env.OPTIMIZEM_API_KEY!,
@@ -126,7 +131,9 @@ const config: HardhatUserConfig = {
             frax: process.env.FRAX_API_KEY!,
             metal: process.env.MEAL_API_KEY!,
             sepolia: process.env.ETHERSCAN_API_KEY!,
-            holesky: process.env.ETHERSCAN_API_KEY!
+            holesky: process.env.ETHERSCAN_API_KEY!,
+            bsc: process.env.BSC_API_KEY!,
+            bsctest: process.env.BSC_API_KEY!,
         },
         customChains: [
             {
@@ -143,6 +150,14 @@ const config: HardhatUserConfig = {
                 urls: {
                     apiURL: "https://api-sepolia.etherscan.io/api",
                     browserURL: "https://sepolia.etherscan.io",
+                },
+            },
+            {
+                network: "bsctest",
+                chainId: 97,
+                urls: {
+                    apiURL: "https://api-testnet.bscscan.com/api",
+                    browserURL: "https://testnet.bscscan.com/",
                 },
             },
             {
