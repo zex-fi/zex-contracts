@@ -20,8 +20,8 @@ contract Vault is
     /// @dev Schnorr verifier contract instance.
     ISchnorrSECP256K1Verifier public verifier;
 
-    /// @dev Mapping to track user-specific nonces.
-    mapping(uint256 => uint256) public nonces;
+    /// @dev Nonce to differentiate between signatures and secure the contrat against reply attack.
+    uint256 public nonce;
 
     /// @dev List of users with registered nonces.
     uint256[] public users;
@@ -31,7 +31,7 @@ contract Vault is
     event EmergencyWithdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
     event PublicKeySet(uint256 indexed pubKeyX, uint8 indexed pubKeyYParity);
     event VerifierSet(address indexed verifier);
-    event NonceUpdated(uint256 indexed userId, uint256 newNonce);
+    event NonceSet(uint256 newNonce);
 
     // Custom Errors
     error InvalidNonce(uint256 provided, uint256 expected);
@@ -78,73 +78,61 @@ contract Vault is
     }
 
     /**
-     * @dev Updates the nonce for a specific user.
-     * @param userId The user ID.
-     * @param nonce The new nonce.
+     * @dev Updates the nonce.
+     * @notice This function is just for test
+     * @param _nonce The new nonce.
      */
-    function setNonce(uint256 userId, uint256 nonce) public {
-        if (nonces[userId] == 0 && nonce != 0) {
-            users.push(userId);
-        }
-        nonces[userId] = nonce;
-        emit NonceUpdated(userId, nonce);
-    }
-
-    /**
-     * @dev Retrieves the current nonce for a user.
-     * @param userId The user ID.
-     * @return The current nonce for the user.
-     */
-    function getNonce(uint256 userId) public view returns (uint256) {
-        return nonces[userId];
+    function setNonce(uint256 _nonce) public onlyOwner {
+        nonce = _nonce;
+        emit NonceSet(nonce);
     }
 
     /**
      * @dev Allows a user to withdraw tokens after verifying the Schnorr signature.
-     * @param tokenAddress The address of the ERC20 token to withdraw.
-     * @param amount The amount of tokens to withdraw.
-     * @param user The user ID.
-     * @param recipient The recipient address for the withdrawal.
-     * @param nonce The user's nonce.
-     * @param signature The Schnorr signature.
-     * @param nonceTimesGeneratorAddress The address used in Schnorr signature generation.
+     * @param _tokenAddress The address of the ERC20 token to withdraw.
+     * @param _amount The amount of tokens to withdraw.
+     * @param _user The user ID.
+     * @param _recipient The recipient address for the withdrawal.
+     * @param _nonce The user's nonce.
+     * @param _signature The Schnorr signature.
+     * @param _nonceTimesGeneratorAddress The address used in Schnorr signature generation.
      */
     function withdraw(
-        address tokenAddress,
-        uint256 amount,
-        uint256 user,
-        address recipient,
-        uint256 nonce,
-        uint256 signature,
-        address nonceTimesGeneratorAddress
+        address _tokenAddress,
+        uint256 _amount,
+        uint256 _user,
+        address _recipient,
+        uint256 _nonce,
+        uint256 _signature,
+        address _nonceTimesGeneratorAddress
     ) external {
-        if (nonce != getNonce(user)) revert InvalidNonce(nonce, getNonce(user));
+        if (_nonce != nonce) revert InvalidNonce(_nonce, nonce);
 
-        uint256 msgHash = uint256(keccak256(abi.encodePacked(user, recipient, tokenAddress, amount, nonce)));
+        uint256 msgHash = uint256(keccak256(abi.encodePacked(_user, _recipient, _tokenAddress, _amount, _nonce)));
 
-        if (!verifier.verifySignature(pubKeyX, pubKeyYParity, signature, msgHash, nonceTimesGeneratorAddress)) {
+        if (!verifier.verifySignature(pubKeyX, pubKeyYParity, _signature, msgHash, _nonceTimesGeneratorAddress)) {
             revert InvalidSignature();
         }
 
-        setNonce(user, nonce + 1);
+        nonce = nonce + 1;
 
-        IERC20Upgradeable(tokenAddress).safeTransfer(recipient, amount);
-        emit Withdrawal(tokenAddress, recipient, amount);
+        IERC20Upgradeable(_tokenAddress).safeTransfer(_recipient, _amount);
+        emit Withdrawal(_tokenAddress, _recipient, _amount);
     }
 
     /**
      * @dev Allows the owner to emergency withdraw tokens.
-     * @param tokenAddress The address of the ERC20 token to withdraw.
-     * @param amount The amount of tokens to withdraw..
-     * @param recipient The recipient address for the withdrawal.
+     * @param _tokenAddress The address of the ERC20 token to withdraw.
+     * @param _amount The amount of tokens to withdraw..
+     * @param _recipient The recipient address for the withdrawal.
      */
     function emergencyWithdrawERC20(
-        address tokenAddress,
-        uint256 amount,
-        address recipient
+        address _tokenAddress,
+        uint256 _amount,
+        address _recipient
     ) external onlyOwner {
-        if (recipient == address(0)) revert ZeroAddress();
-        IERC20Upgradeable(tokenAddress).safeTransfer(recipient, amount);
-        emit EmergencyWithdrawal(tokenAddress, recipient, amount);
+        if (_recipient == address(0)) revert ZeroAddress();
+        IERC20Upgradeable(_tokenAddress).safeTransfer(_recipient, _amount);
+        emit EmergencyWithdrawal(_tokenAddress, _recipient, _amount);
     }
 }
