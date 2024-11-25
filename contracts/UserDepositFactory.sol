@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./UserDeposit.sol";
 import "hardhat/console.sol";
 
-contract UserDepositFactory is AccessControl{
+contract UserDepositFactory is AccessControl {
 
     bytes32 public constant DEPLOYER_ROLE = keccak256("DEPLOYER_ROLE");
     bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
@@ -19,21 +19,21 @@ contract UserDepositFactory is AccessControl{
     address public defaultAdminAddress;
     address public vault;
 
-     constructor(address deployer_, address defaultAdmin_, address operator_, address vault_) {
-         if (
-             deployer_ == address(0) ||
-             defaultAdmin_ == address(0) ||
-             operator_ == address(0) ||
-             vault_ == address(0)
-         ) revert ZeroAddress();
+    constructor(address factoryAdmin_, address defaultAdmin_, address operator_, address vault_) {
+        if (
+            factoryAdmin_ == address(0) ||
+            defaultAdmin_ == address(0) ||
+            operator_ == address(0) ||
+            vault_ == address(0)
+        ) revert ZeroAddress();
 
-         _grantRole(DEFAULT_ADMIN_ROLE, deployer_);
-         _grantRole(DEPLOYER_ROLE, deployer_);
-         _grantRole(OPERATOR_ROLE, operator_);
+        _grantRole(DEFAULT_ADMIN_ROLE, factoryAdmin_);
+        _grantRole(DEPLOYER_ROLE, factoryAdmin_);
+        _grantRole(OPERATOR_ROLE, operator_);
 
-         defaultAdminAddress = defaultAdmin_;
-         _setVault(vault_);
-     }
+        defaultAdminAddress = defaultAdmin_;
+        _setVault(vault_);
+    }
 
     function deploy(uint256 salt) external onlyRole(DEPLOYER_ROLE) returns (address userDepositAddress) {
         bytes memory bytecode = getBytecode();
@@ -78,11 +78,15 @@ contract UserDepositFactory is AccessControl{
         return abi.encodePacked(code, abi.encode(defaultAdminAddress, address(this)));
     }
 
+    function getBytecodeHash() public view returns (bytes32) {
+        return keccak256(getBytecode());
+    }
+
     function setVault(address vault_) external onlyRole(SETTER_ROLE) {
         _setVault(vault_);
     }
 
-    function _setVault(address vault_) internal{
+    function _setVault(address vault_) internal {
         if (vault_ == address(0)) revert ZeroAddress();
         vault = vault_;
         emit VaultSet(vault_);

@@ -80,7 +80,7 @@ const config: HardhatUserConfig = {
             url: `https://polygon-rpc.com/`,
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
         },
-        arbitrum: {
+        arbitrumOne: {
             url: `https://arb1.arbitrum.io/rpc`,
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
         },
@@ -123,7 +123,7 @@ const config: HardhatUserConfig = {
     etherscan: {
         apiKey: {
             polygon: process.env.POLYGON_API_KEY!,
-            arbitrum: process.env.ARBITRUTRY_API_KEY!,
+            arbitrumOne: process.env.ARBITRUM_API_KEY!,
             blast: process.env.BLAST_API_KEY!,
             base: process.env.BASE_API_KEY!,
             optimisticEthereum: process.env.OPTIMIZEM_API_KEY!,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -9,9 +9,12 @@ import {ISchnorrSECP256K1Verifier} from "./Interfaces/ISchnorrSECP256K1Verifier.
 
 contract Vault is
     Initializable,
-    OwnableUpgradeable
+    AccessControlUpgradeable
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
+
+    bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE");
+    bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
 
     /// @dev Public key components for Schnorr signature verification.
     uint256 public pubKeyX;
@@ -46,93 +49,92 @@ contract Vault is
 
     /**
      * @dev Initializes the Vault with a Schnorr verifier and public key components.
-     * @param _verifier Address of the Schnorr verifier contract.
-     * @param _pubKeyX X-coordinate of the public key.
-     * @param _pubKeyYParity Parity of the Y-coordinate of the public key.
+     * @param verifier_ Address of the Schnorr verifier contract.
+     * @param pubKeyX_ X-coordinate of the public key.
+     * @param pubKeyYParity_ Parity of the Y-coordinate of the public key.
      */
-    function initialize(address _verifier, uint256 _pubKeyX, uint8 _pubKeyYParity) external initializer {
-        __Ownable_init();
-        verifier = ISchnorrSECP256K1Verifier(_verifier);
-        pubKeyX = _pubKeyX;
-        pubKeyYParity = _pubKeyYParity;
+    function initialize(address admin_, address verifier_, uint256 pubKeyX_, uint8 pubKeyYParity_) external initializer {
+        __AccessControl_init();
+        verifier = ISchnorrSECP256K1Verifier(verifier_);
+        pubKeyX = pubKeyX_;
+        pubKeyYParity = pubKeyYParity_;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
     }
 
     /**
      * @dev Sets the Schnorr verifier contract address.
-     * @param _verifier Address of the new verifier contract.
+     * @param verifier_ Address of the new verifier contract.
      */
-    function setVerifier(address _verifier) external onlyOwner {
-        verifier = ISchnorrSECP256K1Verifier(_verifier);
-        emit VerifierSet(_verifier);
+    function setVerifier(address verifier_) external onlyRole(SETTER_ROLE) {
+        verifier = ISchnorrSECP256K1Verifier(verifier_);
+        emit VerifierSet(verifier_);
     }
 
     /**
      * @dev Updates the public key components.
-     * @param _pubKeyX X-coordinate of the new public key.
-     * @param _pubKeyYParity Parity of the Y-coordinate of the new public key.
+     * @param pubKeyX_ X-coordinate of the new public key.
+     * @param pubKeyYParity_ Parity of the Y-coordinate of the new public key.
      */
-    function setPublicKey(uint256 _pubKeyX, uint8 _pubKeyYParity) external onlyOwner {
-        pubKeyX = _pubKeyX;
-        pubKeyYParity = _pubKeyYParity;
-        emit PublicKeySet(_pubKeyX, _pubKeyYParity);
+    function setPublicKey(uint256 pubKeyX_, uint8 pubKeyYParity_) external onlyRole(SETTER_ROLE) {
+        pubKeyX = pubKeyX_;
+        pubKeyYParity = pubKeyYParity_;
+        emit PublicKeySet(pubKeyX_, pubKeyYParity_);
     }
 
     /**
      * @dev Updates the nonce.
      * @notice This function is just for test
-     * @param _nonce The new nonce.
+     * @param nonce_ The new nonce.
      */
-    function setNonce(uint256 _nonce) public onlyOwner {
-        nonce = _nonce;
-        emit NonceSet(nonce);
+    function setNonce(uint256 nonce_) public onlyRole(SETTER_ROLE) {
+        nonce = nonce_;
+        emit NonceSet(nonce_);
     }
 
     /**
      * @dev Allows a user to withdraw tokens after verifying the Schnorr signature.
-     * @param _tokenAddress The address of the ERC20 token to withdraw.
-     * @param _amount The amount of tokens to withdraw.
-     * @param _user The user ID.
-     * @param _recipient The recipient address for the withdrawal.
-     * @param _nonce The user's nonce.
-     * @param _signature The Schnorr signature.
-     * @param _nonceTimesGeneratorAddress The address used in Schnorr signature generation.
+     * @param tokenAddress_ The address of the ERC20 token to withdraw.
+     * @param amount_ The amount of tokens to withdraw.
+     * @param recipient_ The recipient address for the withdrawal.
+     * @param nonce_ The user's nonce.
+     * @param signature_ The Schnorr signature.
+     * @param nonceTimesGeneratorAddress_ The address used in Schnorr signature generation.
      */
     function withdraw(
-        address _tokenAddress,
-        uint256 _amount,
-        uint256 _user,
-        address _recipient,
-        uint256 _nonce,
-        uint256 _signature,
-        address _nonceTimesGeneratorAddress
+        address tokenAddress_,
+        uint256 amount_,
+        address recipient_,
+        uint256 nonce_,
+        uint256 signature_,
+        address nonceTimesGeneratorAddress_
     ) external {
-        if (_nonce != nonce) revert InvalidNonce(_nonce, nonce);
+        if (nonce_ != nonce) revert InvalidNonce(nonce_, nonce);
 
-        uint256 msgHash = uint256(keccak256(abi.encodePacked(_user, _recipient, _tokenAddress, _amount, _nonce)));
-
-        if (!verifier.verifySignature(pubKeyX, pubKeyYParity, _signature, msgHash, _nonceTimesGeneratorAddress)) {
+        uint256 msgHash = uint256(keccak256(abi.encodePacked(recipient_, tokenAddress_, amount_, nonce_)));
+        if (!verifier.verifySignature(pubKeyX, pubKeyYParity, signature_, msgHash, nonceTimesGeneratorAddress_)) {
             revert InvalidSignature();
         }
 
         nonce = nonce + 1;
 
-        IERC20Upgradeable(_tokenAddress).safeTransfer(_recipient, _amount);
-        emit Withdrawal(_tokenAddress, _recipient, _amount);
+        IERC20Upgradeable(tokenAddress_).safeTransfer(recipient_, amount_);
+        emit Withdrawal(tokenAddress_, recipient_, amount_);
     }
 
     /**
      * @dev Allows the owner to emergency withdraw tokens.
-     * @param _tokenAddress The address of the ERC20 token to withdraw.
-     * @param _amount The amount of tokens to withdraw..
-     * @param _recipient The recipient address for the withdrawal.
+     * @param tokenAddress_ The address of the ERC20 token to withdraw.
+     * @param amount_ The amount of tokens to withdraw..
+     * @param recipient_ The recipient address for the withdrawal.
      */
     function emergencyWithdrawERC20(
-        address _tokenAddress,
-        uint256 _amount,
-        address _recipient
-    ) external onlyOwner {
-        if (_recipient == address(0)) revert ZeroAddress();
-        IERC20Upgradeable(_tokenAddress).safeTransfer(_recipient, _amount);
-        emit EmergencyWithdrawal(_tokenAddress, _recipient, _amount);
+        address tokenAddress_,
+        uint256 amount_,
+        address recipient_
+    ) external onlyRole(EMERGENCY_WITHDRAW_ROLE) {
+        if (recipient_ == address(0)) revert ZeroAddress();
+        IERC20Upgradeable(tokenAddress_).safeTransfer(recipient_, amount_);
+        emit EmergencyWithdrawal(tokenAddress_, recipient_, amount_);
     }
 }
