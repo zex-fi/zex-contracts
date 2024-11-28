@@ -111,7 +111,7 @@ contract Vault is
     ) external {
         if (nonce_ != nonce) revert InvalidNonce(nonce_, nonce);
 
-        uint256 msgHash = uint256(keccak256(abi.encodePacked(recipient_, tokenAddress_, amount_, nonce_)));
+        uint256 msgHash = uint256(keccak256(abi.encodePacked(recipient_, tokenAddress_, amount_, nonce_, block.chainid)));
         if (!verifier.verifySignature(pubKeyX, pubKeyYParity, signature_, msgHash, nonceTimesGeneratorAddress_)) {
             revert InvalidSignature();
         }

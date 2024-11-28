@@ -33,6 +33,9 @@ const config: HardhatUserConfig = {
         ],
     },
     networks: {
+        hardhat: {
+            chainId: 137,
+        },
         localhost: {
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
         },
