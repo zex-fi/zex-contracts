@@ -1,0 +1,38 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: UserDepositFactory
+    network: bsc
+    source:
+      address: "0xFb12003d74EFfC9Af9a47E3bfbcCF4816D01514a"
+      abi: UserDepositFactory
+      startBlock: 44458179
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Deployed
+        - RoleAdminChanged
+        - RoleGranted
+        - RoleRevoked
+        - VaultSet
+      abis:
+        - name: UserDepositFactory
+          file: ./abis/UserDepositFactory.json
+      eventHandlers:
+        - event: Deployed(indexed address,uint256)
+          handler: handleDeployed
+        - event: RoleAdminChanged(indexed bytes32,indexed bytes32,indexed bytes32)
+          handler: handleRoleAdminChanged
+        - event: RoleGranted(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleGranted
+        - event: RoleRevoked(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleRevoked
+        - event: VaultSet(indexed address)
+          handler: handleVaultSet
+      file: ./src/user-deposit-factory.ts
