@@ -6,26 +6,45 @@ import {SignerWithAddress} from "@nomicfoundation/hardhat-ethers/signers";
 describe("UserDepositFactory", function () {
     let factory: UserDepositFactory;
     let owner: SignerWithAddress;
+    let setter: SignerWithAddress;
     let defaultAdmin: SignerWithAddress;
     let operator: SignerWithAddress;
     let toAccount: SignerWithAddress;
 
     beforeEach(async function () {
-        [owner, defaultAdmin, operator, toAccount] = await ethers.getSigners();
+        [owner, setter, defaultAdmin, operator, toAccount] = await ethers.getSigners();
 
         // Deploy UserDepositFactory contract
         const Factory = await ethers.getContractFactory("UserDepositFactory");
         factory = (await Factory.deploy(owner.address, defaultAdmin.address, operator.address, toAccount.address)) as UserDepositFactory;
         await factory.waitForDeployment();
 
-        // Update the factory's default addresses if necessary
-        await factory.waitForDeployment();
+        await factory.grantRole(await factory.SETTER_ROLE(), setter.address);
     });
 
     describe("Deployment", function () {
         it("Should deploy the factory contract", async function () {
             expect(factory.getAddress).to.be.a("function");
             expect(factory.deploy).to.be.a("function");
+        });
+    });
+
+    describe("Setters", function () {
+        it("should allow the setter to set the verifiers", async function () {
+            await factory.connect(setter).setVault(toAccount.address);
+            expect(await factory.vault()).to.equal(toAccount.address);
+        });
+
+        it("should not allow the setter to set the verifiers with zero address", async function () {
+            await expect(
+                factory.connect(setter).setVault(ethers.ZeroAddress)
+            ).to.be.revertedWithCustomError(factory, "ZeroAddress");
+        });
+
+        it("should not allow the user to set the verifiers", async function () {
+            await expect(
+                factory.connect(toAccount).setVault(toAccount.address)
+            ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
         });
     });
 
@@ -53,6 +72,14 @@ describe("UserDepositFactory", function () {
             expect(predictedAddress).to.equal(computedAddress);
         });
 
+        it("Should calculate the bytecode hash", async function () {
+            const bytecode = await factory.getBytecode();
+
+            const computedHash = ethers.keccak256(bytecode);
+
+            expect(await factory.getBytecodeHash()).to.equal(computedHash);
+        });
+
         it("Should deploy a UserDeposit contract at the predicted address", async function () {
             const tx = await factory.deploy(salt);
             const receipt = await tx.wait();
@@ -72,6 +99,12 @@ describe("UserDepositFactory", function () {
             );
 
             expect(await userDeposit.DEFAULT_ADMIN_ROLE()).to.exist;
+        });
+
+        it("Should not allow user to deploy a UserDeposit", async function () {
+            await expect(
+                factory.connect(toAccount).deploy(salt)
+            ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);;
         });
 
         it("Should emit Deployed event with correct parameters", async function () {

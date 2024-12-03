@@ -1,5 +1,4 @@
 import { ethers } from "hardhat";
-import { ContractReceipt } from "ethers";
 
 async function main() {
   const [deployer] = await ethers.getSigners();

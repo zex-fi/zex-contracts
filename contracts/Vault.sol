@@ -6,6 +6,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ISchnorrSECP256K1Verifier} from "./Interfaces/ISchnorrSECP256K1Verifier.sol";
+import {IECDSAVerifier} from "./Interfaces/IECDSAVerifier.sol";
 
 contract Vault is
     Initializable,
@@ -15,29 +16,29 @@ contract Vault is
 
     bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE");
     bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
+    bytes32 public constant SIGNER_ROLE = keccak256("SIGNER_ROLE");
 
     /// @dev Public key components for Schnorr signature verification.
     uint256 public pubKeyX;
     uint8 public pubKeyYParity;
 
     /// @dev Schnorr verifier contract instance.
-    ISchnorrSECP256K1Verifier public verifier;
+    ISchnorrSECP256K1Verifier public schnorrVerifier;
+
+    /// @dev ECDSA verifier contract instance.
+    IECDSAVerifier public ecdsaVerifier;
 
     /// @dev Nonce to differentiate between signatures and secure the contrat against reply attack.
-    uint256 public nonce;
-
-    /// @dev List of users with registered nonces.
-    uint256[] public users;
+    mapping(uint256 => bool) public nonceIsUsed;
 
     // Events
     event Withdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
     event EmergencyWithdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
     event PublicKeySet(uint256 indexed pubKeyX, uint8 indexed pubKeyYParity);
-    event VerifierSet(address indexed verifier);
-    event NonceSet(uint256 newNonce);
+    event VerifiersSet(address indexed schnorrVerifier, address indexed ecdsaVerifier);
 
     // Custom Errors
-    error InvalidNonce(uint256 provided, uint256 expected);
+    error InvalidNonce(uint256 Nonce);
     error InvalidSignature();
     error TokenTransferFailed();
     error ZeroAddress();
@@ -49,26 +50,32 @@ contract Vault is
 
     /**
      * @dev Initializes the Vault with a Schnorr verifier and public key components.
-     * @param verifier_ Address of the Schnorr verifier contract.
+     * @param schnorrVerifier_ Address of the Schnorr verifier contract.
+     * @param ecdsaVerifier_ Address of the ECDSA verifier contract.
+     * @param signer_ The signer for ECDSA signature.
      * @param pubKeyX_ X-coordinate of the public key.
      * @param pubKeyYParity_ Parity of the Y-coordinate of the public key.
      */
-    function initialize(address admin_, address verifier_, uint256 pubKeyX_, uint8 pubKeyYParity_) external initializer {
+    function initialize(address admin_, address schnorrVerifier_, address ecdsaVerifier_, address signer_, uint256 pubKeyX_, uint8 pubKeyYParity_) external initializer {
         __AccessControl_init();
-        verifier = ISchnorrSECP256K1Verifier(verifier_);
+        schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
+        ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
         pubKeyX = pubKeyX_;
         pubKeyYParity = pubKeyYParity_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(SIGNER_ROLE, signer_);
     }
 
     /**
      * @dev Sets the Schnorr verifier contract address.
-     * @param verifier_ Address of the new verifier contract.
+     * @param schnorrVerifier_ Address of the new Schnorr verifier contract.
+     * @param ecdsaVerifier_ Address of the new ECDSA verifier contract.
      */
-    function setVerifier(address verifier_) external onlyRole(SETTER_ROLE) {
-        verifier = ISchnorrSECP256K1Verifier(verifier_);
-        emit VerifierSet(verifier_);
+    function setVerifiers(address schnorrVerifier_, address ecdsaVerifier_) external onlyRole(SETTER_ROLE) {
+        schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
+        ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
+        emit VerifiersSet(schnorrVerifier_, ecdsaVerifier_);
     }
 
     /**
@@ -80,16 +87,6 @@ contract Vault is
         pubKeyX = pubKeyX_;
         pubKeyYParity = pubKeyYParity_;
         emit PublicKeySet(pubKeyX_, pubKeyYParity_);
-    }
-
-    /**
-     * @dev Updates the nonce.
-     * @notice This function is just for test
-     * @param nonce_ The new nonce.
-     */
-    function setNonce(uint256 nonce_) public onlyRole(SETTER_ROLE) {
-        nonce = nonce_;
-        emit NonceSet(nonce_);
     }
 
     /**
@@ -107,16 +104,21 @@ contract Vault is
         address recipient_,
         uint256 nonce_,
         uint256 signature_,
-        address nonceTimesGeneratorAddress_
+        address nonceTimesGeneratorAddress_,
+        bytes memory shieldSignature_
     ) external {
-        if (nonce_ != nonce) revert InvalidNonce(nonce_, nonce);
+        if (nonceIsUsed[nonce_]) revert InvalidNonce(nonce_);
 
-        uint256 msgHash = uint256(keccak256(abi.encodePacked(recipient_, tokenAddress_, amount_, nonce_, block.chainid)));
-        if (!verifier.verifySignature(pubKeyX, pubKeyYParity, signature_, msgHash, nonceTimesGeneratorAddress_)) {
-            revert InvalidSignature();
-        }
+        bytes32 msgHash = keccak256(
+            abi.encodePacked(recipient_, tokenAddress_, amount_, nonce_, block.chainid)
+        );
 
-        nonce = nonce + 1;
+        if (
+            !schnorrVerifier.verifySignature(pubKeyX, pubKeyYParity, signature_, uint256(msgHash), nonceTimesGeneratorAddress_) ||
+            !hasRole(SIGNER_ROLE, ecdsaVerifier.getSigner(msgHash, shieldSignature_))
+        ) revert InvalidSignature();
+
+        nonceIsUsed[nonce_] = true;
 
         IERC20Upgradeable(tokenAddress_).safeTransfer(recipient_, amount_);
         emit Withdrawal(tokenAddress_, recipient_, amount_);
