@@ -18,14 +18,11 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '22.x'
-    - name: Create .env
-      run: |
-        cp .env.sample .env
     - name: Install dependencies
       run: |
-        npm ci
-        cd eigensdk-js  # Navigate to the submodule directory
-        npm ci  # Install dependencies for the submodule
-        cd ..  # Return to the main project directory
+        npm install
+    - name: Create dummy .env
+      run: |
+        cp .env.example .env
     - name: Run Hardhat tests
       run: npx hardhat test

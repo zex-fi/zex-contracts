@@ -225,6 +225,45 @@ describe("Vault", function () {
             ).to.be.revertedWithCustomError(vault, "InvalidNonce");
         });
 
+        it("should not revert if the used nonce is reset", async function () {
+            const amount = 1000;
+            const recipientAddress = "0x2B3e5649A2Bfc3667b1db1A0ae7E1f9368d676A9";
+            const previousBalance = await erc20Token.balanceOf(recipientAddress);
+            const tokenAddress = await erc20Token.getAddress();
+            const nonce = 0
+            const messageHash = ethers.solidityPackedKeccak256(
+                ["address", "address", "uint256", "uint256", "uint256"],
+                [recipientAddress, tokenAddress, amount, nonce, chainId]
+            );
+            const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+
+            vault.connect(user).withdraw(
+                tokenAddress,
+                amount,
+                recipientAddress,
+                nonce,
+                "111828356413151402719050578037753700300907568096452790769592921787777768889356", // signature
+                "0x57c223A8C0d8BC7dCAe03B90274369f553229A29", // nonceTimesGeneratorAddress
+                shieldSignature
+            );
+            await vault.connect(setter).resetNonces(nonce);
+            await expect(
+                vault
+                    .connect(user)
+                    .withdraw(
+                        tokenAddress,
+                        amount,
+                        recipientAddress,
+                        nonce,
+                        "111828356413151402719050578037753700300907568096452790769592921787777768889356", // signature
+                        "0x57c223A8C0d8BC7dCAe03B90274369f553229A29", // nonceTimesGeneratorAddress
+                        shieldSignature
+                    )
+            )
+                .to.emit(vault, "Withdrawal")
+                .withArgs(await erc20Token.getAddress(), recipientAddress, amount);
+        });
+
         it("should revert if the schnorr signature is invalid", async function () {
             const tokenAddress = await erc20Token.getAddress();
             const amount = ethers.parseEther("10");

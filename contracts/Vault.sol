@@ -36,6 +36,7 @@ contract Vault is
     event EmergencyWithdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
     event PublicKeySet(uint256 indexed pubKeyX, uint8 indexed pubKeyYParity);
     event VerifiersSet(address indexed schnorrVerifier, address indexed ecdsaVerifier);
+    event NonceReset(uint256 index);
 
     // Custom Errors
     error InvalidNonce(uint256 Nonce);
@@ -76,6 +77,18 @@ contract Vault is
         schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
         ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
         emit VerifiersSet(schnorrVerifier_, ecdsaVerifier_);
+    }
+
+    /**
+     * @dev Resets the used nonces.
+     * @notice This function is only for test in development phase and should be removed in production
+     * @param index_ To reset the used nonce from 0
+     */
+    function resetNonces(uint256 index_) external onlyRole(SETTER_ROLE) {
+        for(uint256 i = 0; i <= index_; i++){
+            nonceIsUsed[i] = false;
+        }
+        emit NonceReset(index_);
     }
 
     /**
