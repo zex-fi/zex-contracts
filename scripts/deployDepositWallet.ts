@@ -16,33 +16,33 @@ async function main() {
     // Deploy the SchnorrSECP256K1Verifier contract
     console.log("Deploying verifier...");
     const schnorrVerifierFactory = await ethers.getContractFactory("SchnorrSECP256K1Verifier");
-    // const schnorrVerifier = await schnorrVerifierFactory.deploy();
-    const schnorrVerifier = await ethers.getContractAt("SchnorrSECP256K1Verifier", "0xdEE6525Ae3881f02F13a9aCb8C8f270E461D54c7")
+    const schnorrVerifier = await schnorrVerifierFactory.deploy();
+    // const schnorrVerifier = await ethers.getContractAt("SchnorrSECP256K1Verifier", "0xdEE6525Ae3881f02F13a9aCb8C8f270E461D54c7")
     await schnorrVerifier.waitForDeployment();
     console.log("Schnorr Verifier deployed to:", await schnorrVerifier.getAddress());
 
     // Deploy the ECDSAVerifier contract
     console.log("Deploying verifier...");
     const ecdsaVerifierFactory = await ethers.getContractFactory("ECDSAVerifier");
-    // const ecdsaVerifier = await ecdsaVerifierFactory.deploy();
-    const ecdsaVerifier = await ethers.getContractAt("ECDSAVerifier", "0xA791763d2Bd0e0610D5D9f40e52E298e53E692fb")
+    const ecdsaVerifier = await ecdsaVerifierFactory.deploy();
+    // const ecdsaVerifier = await ethers.getContractAt("ECDSAVerifier", "0xA791763d2Bd0e0610D5D9f40e52E298e53E692fb")
     await ecdsaVerifier.waitForDeployment();
     console.log("ECDSA Verifier deployed to:", await ecdsaVerifier.getAddress());
 
     console.log("Deploying Vault...");
     const Vault = await ethers.getContractFactory("Vault");
-    // const vault = await upgrades.deployProxy(Vault, [
-    //     vaultAdmin,
-    //     await schnorrVerifier.getAddress(),
-    //     await ecdsaVerifier.getAddress(),
-    //     ecdsaSigner,
-    //     pubKeyX,
-    //     pubKeyYParity
-    // ], {
-    //     initializer: "initialize",
-    // });
+    const vault = await upgrades.deployProxy(Vault, [
+        vaultAdmin,
+        await schnorrVerifier.getAddress(),
+        await ecdsaVerifier.getAddress(),
+        ecdsaSigner,
+        pubKeyX,
+        pubKeyYParity
+    ], {
+        initializer: "initialize",
+    });
 
-    const vault = await upgrades.upgradeProxy("0x17a8bC4724666738387Ef5Fc59F7EF835AF60979", Vault);
+    // const vault = await upgrades.upgradeProxy("0x17a8bC4724666738387Ef5Fc59F7EF835AF60979", Vault);
 
     // const vault = await ethers.getContractAt("Vault", "0xcb00C4e20F84aE691C9739e4E202eaCafD187e8d")
     await vault.waitForDeployment();
@@ -50,8 +50,8 @@ async function main() {
 
     // Deploy the factory contract
     const UserDepositFactory = await ethers.getContractFactory("UserDepositFactory");
-    // const factory = await UserDepositFactory.deploy(factoryAdmin, adminAddress, operatorAddress, await vault.getAddress());
-    const factory = await ethers.getContractAt("UserDepositFactory", "0xa16aF858AEfE32994dAcdb640683a66FDcCB9569")
+    const factory = await UserDepositFactory.deploy(factoryAdmin, adminAddress, operatorAddress, await vault.getAddress());
+    // const factory = await ethers.getContractAt("UserDepositFactory", "0xa16aF858AEfE32994dAcdb640683a66FDcCB9569")
     await factory.waitForDeployment();
     const factoryAddress = await factory.getAddress();
     console.log("Factory contract deployed to:", factoryAddress);

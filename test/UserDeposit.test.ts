@@ -29,7 +29,7 @@ describe("UserDeposit", function () {
 
         // Deploy mock ERC20 token
         const MockERC20 = await ethers.getContractFactory("MockERC20");
-        erc20Token = await MockERC20.deploy("MockToken", "MTK");
+        erc20Token = await MockERC20.deploy("MockToken", "MTK", 18, owner.address);
         await erc20Token.waitForDeployment();
 
         // Deploy mock ERC721 token

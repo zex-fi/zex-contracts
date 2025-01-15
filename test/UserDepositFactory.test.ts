@@ -151,7 +151,7 @@ describe("UserDepositFactory", function () {
         it("Should allow operator to transfer ERC20 tokens", async function () {
             // Deploy mock ERC20 token
             const MockERC20 = await ethers.getContractFactory("MockERC20");
-            const erc20Token = await MockERC20.deploy("MockToken", "MTK");
+            const erc20Token = await MockERC20.deploy("MockToken", "MTK", 18, owner.address);
             await erc20Token.waitForDeployment();
 
             // Mint tokens to UserDeposit contract
