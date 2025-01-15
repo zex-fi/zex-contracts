@@ -102,6 +102,9 @@ contract Vault is
         emit PublicKeySet(pubKeyX_, pubKeyYParity_);
     }
 
+    // Fallback function to receive native tokens
+    receive() external payable {}
+
     /**
      * @dev Allows a user to withdraw tokens after verifying the Schnorr signature.
      * @param tokenAddress_ The address of the ERC20 token to withdraw.
@@ -120,6 +123,7 @@ contract Vault is
         address nonceTimesGeneratorAddress_,
         bytes memory shieldSignature_
     ) external {
+        if (recipient_ == address(0)) revert ZeroAddress();
         if (nonceIsUsed[nonce_]) revert InvalidNonce(nonce_);
 
         bytes32 msgHash = keccak256(
@@ -133,7 +137,11 @@ contract Vault is
 
         nonceIsUsed[nonce_] = true;
 
-        IERC20Upgradeable(tokenAddress_).safeTransfer(recipient_, amount_);
+        if(tokenAddress_ == address(0)){
+            (bool success, ) = recipient_.call{value: amount_}("");
+            if (!success) revert TokenTransferFailed();
+        }
+        else IERC20Upgradeable(tokenAddress_).safeTransfer(recipient_, amount_);
         emit Withdrawal(tokenAddress_, recipient_, amount_);
     }
 
@@ -149,7 +157,11 @@ contract Vault is
         address recipient_
     ) external onlyRole(EMERGENCY_WITHDRAW_ROLE) {
         if (recipient_ == address(0)) revert ZeroAddress();
-        IERC20Upgradeable(tokenAddress_).safeTransfer(recipient_, amount_);
+        if(tokenAddress_ == address(0)){
+            (bool success, ) = recipient_.call{value: amount_}("");
+            if (!success) revert TokenTransferFailed();
+        }
+        else IERC20Upgradeable(tokenAddress_).safeTransfer(recipient_, amount_);
         emit EmergencyWithdrawal(tokenAddress_, recipient_, amount_);
     }
 }

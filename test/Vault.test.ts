@@ -58,9 +58,13 @@ describe("Vault", function () {
 
         // Deploy Mock ERC20 Token
         const MockERC20 = await ethers.getContractFactory("MockERC20");
-        erc20Token = (await MockERC20.deploy("Test Token", "TTK")) as unknown as MockERC20;
+        erc20Token = (await MockERC20.deploy("Test Token", "TTK", 8, owner.address)) as unknown as MockERC20;
         await erc20Token.waitForDeployment();
         await erc20Token.mint(await vault.getAddress(), ethers.parseUnits("1000", 18))
+        await owner.sendTransaction({
+                to: await vault.getAddress(),
+                value: ethers.parseEther("1.0"),
+            });
     });
 
     describe("Initialization", function () {
@@ -110,6 +114,22 @@ describe("Vault", function () {
                 .withArgs(await erc20Token.getAddress(), recipient.address, amount);
 
             expect(await erc20Token.balanceOf(recipient.address)).to.equal(amount);
+        });
+
+        it("should allow the withdrawer to perform emergency withdrawals", async function () {
+            const amount = ethers.parseEther("1" );
+            const recipientBalance = await ethers.provider.getBalance(recipient.address);
+            const vaultBalance = await ethers.provider.getBalance(await vault.getAddress());
+            await expect(
+                vault
+                    .connect(withdrawer)
+                    .emergencyWithdrawERC20(ethers.ZeroAddress, amount, recipient.address)
+            )
+                .to.emit(vault, "EmergencyWithdrawal")
+                .withArgs(ethers.ZeroAddress, recipient.address, amount);
+
+            expect(await ethers.provider.getBalance(recipient.address)).to.equal(recipientBalance + amount);
+            expect(await ethers.provider.getBalance(await vault.getAddress())).to.equal(vaultBalance - amount);
         });
 
         it("should not allow the user to perform emergency withdrawals", async function () {
