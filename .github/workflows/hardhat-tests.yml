@@ -23,6 +23,6 @@ jobs:
         npm install
     - name: Create dummy .env
       run: |
-        cp .env.example .env
+        cp .env.sample .env
     - name: Run Hardhat tests
       run: npx hardhat test
