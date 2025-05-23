@@ -22,7 +22,7 @@ contract MockERC20 is ERC20, AccessControl {
         _grantRole(MINTER_ROLE, admin);
     }
 
-    function mint(address to, uint256 amount) public {
+    function mint(address to, uint256 amount) public onlyRole(MINTER_ROLE) {
         _mint(to, amount);
     }
 
