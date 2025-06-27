@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
@@ -19,8 +19,7 @@ contract Vault is
     bytes32 public constant SIGNER_ROLE = keccak256("SIGNER_ROLE");
 
     /// @dev Public key components for Schnorr signature verification.
-    uint256 public pubKeyX;
-    uint8 public pubKeyYParity;
+    bytes public pubKey;
 
     /// @dev Schnorr verifier contract instance.
     ISchnorrSECP256K1Verifier public schnorrVerifier;
@@ -28,18 +27,18 @@ contract Vault is
     /// @dev ECDSA verifier contract instance.
     IECDSAVerifier public ecdsaVerifier;
 
-    /// @dev Nonce to differentiate between signatures and secure the contrat against reply attack.
-    mapping(uint256 => bool) public nonceIsUsed;
+    /// @dev WithdrawalId to differentiate between signatures and secure the contrat against reply attack.
+    mapping(uint256 => bool) public withdrawalIdIsUsed;
 
     // Events
     event Withdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
     event EmergencyWithdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
-    event PublicKeySet(uint256 indexed pubKeyX, uint8 indexed pubKeyYParity);
+    event PublicKeySet(bytes indexed pubKey);
     event VerifiersSet(address indexed schnorrVerifier, address indexed ecdsaVerifier);
-    event NonceReset(uint256 index);
+    event WithdrawalIdReset(uint256 index);
 
     // Custom Errors
-    error InvalidNonce(uint256 Nonce);
+    error InvalidWithdrawalId(uint256 WithdrawalID);
     error InvalidSignature();
     error TokenTransferFailed();
     error ZeroAddress();
@@ -54,15 +53,13 @@ contract Vault is
      * @param schnorrVerifier_ Address of the Schnorr verifier contract.
      * @param ecdsaVerifier_ Address of the ECDSA verifier contract.
      * @param signer_ The signer for ECDSA signature.
-     * @param pubKeyX_ X-coordinate of the public key.
-     * @param pubKeyYParity_ Parity of the Y-coordinate of the public key.
+     * @param pubKey_ The public key.
      */
-    function initialize(address admin_, address schnorrVerifier_, address ecdsaVerifier_, address signer_, uint256 pubKeyX_, uint8 pubKeyYParity_) external initializer {
+    function initialize(address admin_, address schnorrVerifier_, address ecdsaVerifier_, address signer_, bytes calldata pubKey_) external initializer {
         __AccessControl_init();
         schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
         ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
-        pubKeyX = pubKeyX_;
-        pubKeyYParity = pubKeyYParity_;
+        pubKey = pubKey_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(SIGNER_ROLE, signer_);
@@ -80,26 +77,24 @@ contract Vault is
     }
 
     /**
-     * @dev Resets the used nonces.
+     * @dev Resets the used W\withdrawal ID.
      * @notice This function is only for test in development phase and should be removed in production
-     * @param index_ To reset the used nonce from 0
+     * @param index_ To reset the used withdrawal ID from 0
      */
-    function resetNonces(uint256 index_) external onlyRole(SETTER_ROLE) {
+    function resetWithdrawalID(uint256 index_) external onlyRole(SETTER_ROLE) {
         for(uint256 i = 0; i <= index_; i++){
-            nonceIsUsed[i] = false;
+            withdrawalIdIsUsed[i] = false;
         }
-        emit NonceReset(index_);
+        emit WithdrawalIdReset(index_);
     }
 
     /**
      * @dev Updates the public key components.
-     * @param pubKeyX_ X-coordinate of the new public key.
-     * @param pubKeyYParity_ Parity of the Y-coordinate of the new public key.
+     * @param pubKey_ The new public key.
      */
-    function setPublicKey(uint256 pubKeyX_, uint8 pubKeyYParity_) external onlyRole(SETTER_ROLE) {
-        pubKeyX = pubKeyX_;
-        pubKeyYParity = pubKeyYParity_;
-        emit PublicKeySet(pubKeyX_, pubKeyYParity_);
+    function setPublicKey(bytes calldata pubKey_) external onlyRole(SETTER_ROLE) {
+        pubKey = pubKey_;
+        emit PublicKeySet(pubKey_);
     }
 
     // Fallback function to receive native tokens
@@ -110,32 +105,31 @@ contract Vault is
      * @param tokenAddress_ The address of the ERC20 token to withdraw.
      * @param amount_ The amount of tokens to withdraw.
      * @param recipient_ The recipient address for the withdrawal.
-     * @param nonce_ The user's nonce.
+     * @param withdrawalId_ The user's withdrawal ID.
      * @param signature_ The Schnorr signature.
-     * @param nonceTimesGeneratorAddress_ The address used in Schnorr signature generation.
+     * @param shieldSignature_ The shield signature.
      */
     function withdraw(
         address tokenAddress_,
         uint256 amount_,
         address recipient_,
-        uint256 nonce_,
-        uint256 signature_,
-        address nonceTimesGeneratorAddress_,
-        bytes memory shieldSignature_
+        uint256 withdrawalId_,
+        bytes calldata signature_,
+        bytes calldata shieldSignature_
     ) external {
         if (recipient_ == address(0)) revert ZeroAddress();
-        if (nonceIsUsed[nonce_]) revert InvalidNonce(nonce_);
+        if (withdrawalIdIsUsed[withdrawalId_]) revert InvalidWithdrawalId(withdrawalId_);
 
         bytes32 msgHash = keccak256(
-            abi.encodePacked(recipient_, tokenAddress_, amount_, nonce_, block.chainid)
+            abi.encodePacked(recipient_, tokenAddress_, amount_, withdrawalId_, block.chainid)
         );
 
         if (
-            !schnorrVerifier.verifySignature(pubKeyX, pubKeyYParity, signature_, uint256(msgHash), nonceTimesGeneratorAddress_) ||
+            !schnorrVerifier.verifySignature(pubKey, signature_, uint256(msgHash)) ||
             !hasRole(SIGNER_ROLE, ecdsaVerifier.getSigner(msgHash, shieldSignature_))
         ) revert InvalidSignature();
 
-        nonceIsUsed[nonce_] = true;
+        withdrawalIdIsUsed[withdrawalId_] = true;
 
         if(tokenAddress_ == address(0)){
             (bool success, ) = recipient_.call{value: amount_}("");

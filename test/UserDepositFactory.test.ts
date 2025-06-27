@@ -44,7 +44,7 @@ describe("UserDepositFactory", function () {
         it("should not allow the user to set the verifiers", async function () {
             await expect(
                 factory.connect(toAccount).setVault(toAccount.address)
-            ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
+            ).to.be.revertedWithCustomError(factory, "AccessControlUnauthorizedAccount");
         });
     });
 
@@ -104,7 +104,7 @@ describe("UserDepositFactory", function () {
         it("Should not allow user to deploy a UserDeposit", async function () {
             await expect(
                 factory.connect(toAccount).deploy(salt)
-            ).to.be.revertedWith(/AccessControl: account .* is missing role .*/);;
+            ).to.be.revertedWithCustomError(factory, "AccessControlUnauthorizedAccount");;
         });
 
         it("Should emit Deployed event with correct parameters", async function () {

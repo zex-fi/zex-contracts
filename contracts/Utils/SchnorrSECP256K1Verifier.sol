@@ -1,10 +1,6 @@
-/**
- *Submitted for verification at Etherscan.io on 2024-08-31
-*/
-
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.7.0 <0.9.0;
+pragma solidity >=0.8.20;
 
 contract SchnorrSECP256K1Verifier {
     // See https://en.bitcoin.it/wiki/Secp256k1 for this constant.
@@ -80,35 +76,37 @@ contract SchnorrSECP256K1Verifier {
       giant-step" is only 128 bits, so this weakening constitutes no compromise
       in the security of the signatures or the key.
 
-      @dev The constraint signingPubKeyX < HALF_Q comes from Eq. (281), p. 24
+      @dev The constraint pubKeyX < HALF_Q comes from Eq. (281), p. 24
       of Yellow Paper version 78d7b9a. ecrecover only accepts "s" inputs less
       than HALF_Q, to protect against a signature- malleability vulnerability in
       ECDSA. Schnorr does not have this vulnerability, but we must account for
       ecrecover's defense anyway. And since we are abusing ecrecover by putting
-      signingPubKeyX in ecrecover's "s" argument the constraint applies to
-      signingPubKeyX, even though it represents a value in the base field, and
+      pubKeyX in ecrecover's "s" argument the constraint applies to
+      pubKeyX, even though it represents a value in the base field, and
       has no natural relationship to the order of the curve's cyclic group.
       **************************************************************************
-      @param signingPubKeyX is the x ordinate of the public key. This must be
-             less than HALF_Q.
-      @param pubKeyYParity is 0 if the y ordinate of the public key is even, 1
-             if it's odd.
-      @param signature is the actual signature, described as s in the above
-             instructions.
+      @param publicKey is signer public key. This publicKey's x must be less than HALF_Q.
+      @param signature fist 32 bytes is challange and the secound 32 bytes is signature
       @param msgHash is a 256-bit hash of the message being signed.
-      @param nonceTimesGeneratorAddress is the ethereum address of k*g in the
-             above instructions
       **************************************************************************
       @return True if passed a valid signature, false otherwise. */
     function verifySignature(
-        uint256 signingPubKeyX,
-        uint8 pubKeyYParity,
-        uint256 signature,
-        uint256 msgHash,
-        address nonceTimesGeneratorAddress) public pure returns (bool) {
-        require(signingPubKeyX < HALF_Q, "Public-key x >= HALF_Q");
+        bytes calldata publicKey,
+        bytes calldata signature,
+        uint256 msgHash
+    ) public pure returns (bool) {
+        require(publicKey.length == 33, "Public key must be 33 bytes");
+        require(signature.length == 64, "Signature must be 64 bytes");
+
+        uint8 pubKeyYParity = uint8(publicKey[0]) - 2 + 27;
+        require(pubKeyYParity == 27 || pubKeyYParity == 28, "Invalid parity bit");
+        uint256 pubKeyX = uint256(bytes32(publicKey[1 : 33]));
+        require(pubKeyX < HALF_Q, "Public-key x >= HALF_Q");
+
+        uint256 e = uint256(bytes32(signature[0 : 32]));
+        uint256 s = uint256(bytes32(signature[32 : 64]));
         // Avoid signature malleability from multiple representations for ℤ/Qℤ elts
-        require(signature < Q, "signature must be reduced modulo Q");
+        require(s < Q, "signature must be reduced modulo Q");
 
         // Forbid trivial inputs, to avoid ecrecover edge cases. The main thing to
         // avoid is something which causes ecrecover to return 0x0: then trivial
@@ -116,17 +114,9 @@ contract SchnorrSECP256K1Verifier {
         // set to 0x0.
         //
         // solium-disable-next-line indentation
-        require(nonceTimesGeneratorAddress != address(0) && signingPubKeyX > 0 &&
-        signature > 0 && msgHash > 0, "no zero inputs allowed");
+        require(pubKeyX > 0 && s > 0 && msgHash > 0, "no zero inputs allowed");
 
-        // solium-disable-next-line indentation
-        uint256 msgChallenge = // "e"
-        // solium-disable-next-line indentation
-                            uint256(sha256(abi.encodePacked(signingPubKeyX, pubKeyYParity,
-                msgHash, nonceTimesGeneratorAddress))
-            );
-
-        // Verify msgChallenge * signingPubKey + signature * generator ==
+        // Verify msgChallenge * pubKey + signature * generator ==
         //        nonce * generator
         //
         // https://ethresear.ch/t/you-can-kinda-abuse-ecrecover-to-do-ecmul-in-secp256k1-today/2384/9
@@ -137,17 +127,26 @@ contract SchnorrSECP256K1Verifier {
         // solium-disable-next-line indentation
         address recoveredAddress = ecrecover(
         // solium-disable-next-line zeppelin/no-arithmetic-operations
-            bytes32(Q - mulmod(signingPubKeyX, signature, Q)),
+            bytes32(Q - mulmod(pubKeyX, s, Q)),
             // https://ethereum.github.io/yellowpaper/paper.pdf p. 24, "The
             // value 27 represents an even y value and 28 represents an odd
             // y value."
-            (pubKeyYParity == 0) ? 27 : 28,
-            bytes32(signingPubKeyX),
-            bytes32(mulmod(msgChallenge, signingPubKeyX, Q)));
-        return nonceTimesGeneratorAddress == recoveredAddress;
+            pubKeyYParity,
+            bytes32(pubKeyX),
+            bytes32(Q - mulmod(e, pubKeyX, Q))
+        );
+
+        require(recoveredAddress != address(0), "ecrecover failed");
+
+        return bytes32(e) == keccak256(abi.encodePacked(
+            recoveredAddress,
+            pubKeyYParity,
+            pubKeyX,
+            msgHash
+        ));
     }
 
-    function validatePubKey(uint256 signingPubKeyX) public pure {
-        require(signingPubKeyX < HALF_Q, "Public-key x >= HALF_Q");
+    function validatePubKey(uint256 pubKeyX) public pure {
+        require(pubKeyX < HALF_Q, "Public-key x >= HALF_Q");
     }
 }

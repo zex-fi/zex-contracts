@@ -3,8 +3,7 @@ import {getAddress} from "ethers";
 
 async function main() {
     const [deployer] = await ethers.getSigners();
-    const pubKeyX = "18558685049902181818735037110738643732519729533907885887150087414461356251645";
-    const pubKeyYParity = 0;
+    const pubKey = "0x02712bf86ee0a61a6636bd86c79e5922383c5dd4541062ed4d733a871650a777e9";
     const factoryAdmin: string = "0x5fCeb18CF62bF791d7Aa0931D3159f95650A0061";
     const vaultAdmin: string = "0x5fCeb18CF62bF791d7Aa0931D3159f95650A0061";
     const operatorAddress: string = "0x5fCeb18CF62bF791d7Aa0931D3159f95650A0061";
@@ -16,16 +15,16 @@ async function main() {
     // Deploy the SchnorrSECP256K1Verifier contract
     console.log("Deploying verifier...");
     const schnorrVerifierFactory = await ethers.getContractFactory("SchnorrSECP256K1Verifier");
-    const schnorrVerifier = await schnorrVerifierFactory.deploy();
-    // const schnorrVerifier = await ethers.getContractAt("SchnorrSECP256K1Verifier", "0xdEE6525Ae3881f02F13a9aCb8C8f270E461D54c7")
+    // const schnorrVerifier = await schnorrVerifierFactory.deploy();
+    const schnorrVerifier = await ethers.getContractAt("SchnorrSECP256K1Verifier", "0xAb312Cc1831fcB14B721427127EBAb00B520b05B")
     await schnorrVerifier.waitForDeployment();
     console.log("Schnorr Verifier deployed to:", await schnorrVerifier.getAddress());
 
     // Deploy the ECDSAVerifier contract
     console.log("Deploying verifier...");
     const ecdsaVerifierFactory = await ethers.getContractFactory("ECDSAVerifier");
-    const ecdsaVerifier = await ecdsaVerifierFactory.deploy();
-    // const ecdsaVerifier = await ethers.getContractAt("ECDSAVerifier", "0xA791763d2Bd0e0610D5D9f40e52E298e53E692fb")
+    // const ecdsaVerifier = await ecdsaVerifierFactory.deploy();
+    const ecdsaVerifier = await ethers.getContractAt("ECDSAVerifier", "0x901241C32469Ed2CCFf807Ea10F2865D7C194796")
     await ecdsaVerifier.waitForDeployment();
     console.log("ECDSA Verifier deployed to:", await ecdsaVerifier.getAddress());
 
@@ -36,8 +35,7 @@ async function main() {
         await schnorrVerifier.getAddress(),
         await ecdsaVerifier.getAddress(),
         ecdsaSigner,
-        pubKeyX,
-        pubKeyYParity
+        pubKey,
     ], {
         initializer: "initialize",
     });
@@ -50,8 +48,8 @@ async function main() {
 
     // Deploy the factory contract
     const UserDepositFactory = await ethers.getContractFactory("UserDepositFactory");
-    const factory = await UserDepositFactory.deploy(factoryAdmin, adminAddress, operatorAddress, await vault.getAddress());
-    // const factory = await ethers.getContractAt("UserDepositFactory", "0xa16aF858AEfE32994dAcdb640683a66FDcCB9569")
+    // const factory = await UserDepositFactory.deploy(factoryAdmin, adminAddress, operatorAddress, await vault.getAddress());
+    const factory = await ethers.getContractAt("UserDepositFactory", "0xfc0553e406d6ec08cffeA1FA41ABA3f4d7B4A59D")
     await factory.waitForDeployment();
     const factoryAddress = await factory.getAddress();
     console.log("Factory contract deployed to:", factoryAddress);
