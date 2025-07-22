@@ -7,6 +7,8 @@ import "@openzeppelin/hardhat-upgrades";
 import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "solidity-coverage";
+import "@layerzerolabs/hardhat-deploy";
+import "@layerzerolabs/hardhat-tron";
 
 dotenv.config();
 
@@ -31,6 +33,10 @@ const config: HardhatUserConfig = {
                 },
             },
         ],
+    },
+    tronSolc: {
+        enable: true,
+        compilers: [{version: "0.8.22"}],        // same version, Tron flavour
     },
     networks: {
         hardhat: {
@@ -115,6 +121,19 @@ const config: HardhatUserConfig = {
             url: `https://rpc.metall2.com`,
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
         },
+        nile: {
+            url: "https://nile.trongrid.io/jsonrpc", // JSON-RPC endpoint
+            chainId: 3448148188,                            // Nile chain-id (EVM)
+            accounts: [process.env.TRON_PRIVATE_KEY!],
+            tron: true,                              // flag required by the plugin
+            gasPrice: 1_000_000_000,
+            httpHeaders: {
+                "TRON-PRO-API-KEY": process.env.TRON_PRO_API_KEY!,
+            },
+        },
+    },
+    namedAccounts: {
+        deployer: 0,                               // hardhat-deploy nicety
     },
     sourcify: {
         enabled: false,

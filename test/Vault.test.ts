@@ -20,7 +20,7 @@ describe("Vault", function () {
     let signerRole: string;
     let withdrawerRole: string;
     const chainId = 137;
-    const pubKey = "0x0210f2d4d7658f6f94d01e1d5b2a4b042861aab2a72ba100c85e79bc142ab55494";
+    const pubKey = "0x02661dd4b838eb369022edc2494ed7c8b9294c9dc6a1949ee06a905f49ec87f442";
     const mockERC20Address = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
     const richAccountAddress = "0xF977814e90dA44bFA03b6295A0616a897441aceC";
 
@@ -66,22 +66,10 @@ describe("Vault", function () {
     });
 
     describe("Initialization", function () {
-        it.only("should initialize correctly", async function () {
+        it("should initialize correctly", async function () {
             expect(await vault.pubKey()).to.equal(pubKey);
             expect(await vault.schnorrVerifier()).to.equal(await schnorrVerifier.getAddress());
             expect(await vault.ecdsaVerifier()).to.equal(await ecdsaVerifier.getAddress());
-            console.log(
-                ethers.solidityPacked(
-                ["address", "address", "uint256", "uint256", "uint256"],
-                [
-                    "0xF5Ed9bd40fD35A5f60dc3059bB16cfb8B5B8dd01".toLowerCase(),
-                    "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238".toLowerCase(),
-                    5000,
-                    2443,
-                    11155111
-                ]
-            )
-            )
         });
     });
 
@@ -186,16 +174,22 @@ describe("Vault", function () {
             await erc20Token.connect(richAccount).transfer(await vault.getAddress(), ethers.parseUnits("1000", 8));
         });
 
-        it("should allow valid withdrawals with a correct Schnorr signature", async function () {
-            const amount = 1000;
-            const recipientAddress = "0x2B3e5649A2Bfc3667b1db1A0ae7E1f9368d676A9";
+        it.only("should allow valid withdrawals with a correct Schnorr signature", async function () {
+            const amount = 10000;
+            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const previousBalance = await erc20Token.balanceOf(recipientAddress);
             const tokenAddress = await erc20Token.getAddress();
-            const withdrawalId = 0
+            const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
                 ["address", "address", "uint256", "uint256", "uint256"],
                 [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
             );
+            console.log(recipientAddress, tokenAddress, amount, withdrawalId, chainId)
+            console.log(messageHash)
+            console.log(ethers.solidityPackedKeccak256(
+                ["bytes32"],
+                [messageHash]
+            ))
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
             await expect(
                 vault
@@ -205,7 +199,7 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x88dbc8cb6e8df759831e086d995ca4b36bb2e60fbc07a20d8b1e98ab25aaaf82272eabebd14de73f5a83de44bc8c7cddef7761eac96d117dad11a25ee0e1e3ce", // signature
+                        "0xe86f67eba27a75b9d4b0fd9416f89cddf0e38527515b0486699cb477c9f9cc98d880e12c4387ff891df2962c6c251ff40cf9cec85c51f3852f89216ae289a02d", // signature
                         shieldSignature
                     )
             )
@@ -213,7 +207,7 @@ describe("Vault", function () {
                 .withArgs(await erc20Token.getAddress(), recipientAddress, amount);
 
             expect(await erc20Token.balanceOf(recipientAddress) - previousBalance).to.equal(amount);
-            expect(await vault.withdrawalIdIsUsed(0)).to.equal(true); // Nonce incremented
+            expect(await vault.withdrawalIdIsUsed(withdrawalId)).to.equal(true); // Nonce incremented
         });
 
         it("should revert if the withdrawalId is invalid", async function () {

@@ -15,16 +15,16 @@ async function main() {
     // Deploy the SchnorrSECP256K1Verifier contract
     console.log("Deploying verifier...");
     const schnorrVerifierFactory = await ethers.getContractFactory("SchnorrSECP256K1Verifier");
-    // const schnorrVerifier = await schnorrVerifierFactory.deploy();
-    const schnorrVerifier = await ethers.getContractAt("SchnorrSECP256K1Verifier", "0xAb312Cc1831fcB14B721427127EBAb00B520b05B")
+    const schnorrVerifier = await schnorrVerifierFactory.deploy();
+    // const schnorrVerifier = await ethers.getContractAt("SchnorrSECP256K1Verifier", "")
     await schnorrVerifier.waitForDeployment();
     console.log("Schnorr Verifier deployed to:", await schnorrVerifier.getAddress());
 
     // Deploy the ECDSAVerifier contract
     console.log("Deploying verifier...");
     const ecdsaVerifierFactory = await ethers.getContractFactory("ECDSAVerifier");
-    // const ecdsaVerifier = await ecdsaVerifierFactory.deploy();
-    const ecdsaVerifier = await ethers.getContractAt("ECDSAVerifier", "0x901241C32469Ed2CCFf807Ea10F2865D7C194796")
+    const ecdsaVerifier = await ecdsaVerifierFactory.deploy();
+    // const ecdsaVerifier = await ethers.getContractAt("ECDSAVerifier", "")
     await ecdsaVerifier.waitForDeployment();
     console.log("ECDSA Verifier deployed to:", await ecdsaVerifier.getAddress());
 
@@ -40,16 +40,16 @@ async function main() {
         initializer: "initialize",
     });
 
-    // const vault = await upgrades.upgradeProxy("0x17a8bC4724666738387Ef5Fc59F7EF835AF60979", Vault);
+    // const vault = await upgrades.upgradeProxy("", Vault);
 
-    // const vault = await ethers.getContractAt("Vault", "0xcb00C4e20F84aE691C9739e4E202eaCafD187e8d")
+    // const vault = await ethers.getContractAt("Vault", "")
     await vault.waitForDeployment();
     console.log("Vault deployed to:", await vault.getAddress());
 
     // Deploy the factory contract
     const UserDepositFactory = await ethers.getContractFactory("UserDepositFactory");
     // const factory = await UserDepositFactory.deploy(factoryAdmin, adminAddress, operatorAddress, await vault.getAddress());
-    const factory = await ethers.getContractAt("UserDepositFactory", "0xfc0553e406d6ec08cffeA1FA41ABA3f4d7B4A59D")
+    const factory = await ethers.getContractAt("UserDepositFactory", "0xFE74B8A9278c4463bA1273b2090695246b757A32")
     await factory.waitForDeployment();
     const factoryAddress = await factory.getAddress();
     console.log("Factory contract deployed to:", factoryAddress);
