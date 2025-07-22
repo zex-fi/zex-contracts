@@ -48,8 +48,8 @@ async function main() {
 
     // Deploy the factory contract
     const UserDepositFactory = await ethers.getContractFactory("UserDepositFactory");
-    // const factory = await UserDepositFactory.deploy(factoryAdmin, adminAddress, operatorAddress, await vault.getAddress());
-    const factory = await ethers.getContractAt("UserDepositFactory", "0xFE74B8A9278c4463bA1273b2090695246b757A32")
+    const factory = await UserDepositFactory.deploy(factoryAdmin, adminAddress, operatorAddress, await vault.getAddress());
+    // const factory = await ethers.getContractAt("UserDepositFactory", "")
     await factory.waitForDeployment();
     const factoryAddress = await factory.getAddress();
     console.log("Factory contract deployed to:", factoryAddress);
