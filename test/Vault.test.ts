@@ -14,19 +14,22 @@ describe("Vault", function () {
     let user: SignerWithAddress;
     let ecdsaSigner: SignerWithAddress;
     let recipient: SignerWithAddress;
-    let nonceTimesGenerator: SignerWithAddress;
-    let richAccount: SignerWithAddress;
     let setterRole: string;
     let signerRole: string;
     let withdrawerRole: string;
     const chainId = 137;
-    const pubKey = "0x02661dd4b838eb369022edc2494ed7c8b9294c9dc6a1949ee06a905f49ec87f442";
-    const mockERC20Address = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
-    const richAccountAddress = "0xF977814e90dA44bFA03b6295A0616a897441aceC";
+    const pubKey = "0x022dd9d16684d8d370a798ed7d26f3900afb5d67ddf55488cc75ddc57099391362";
+
+    before(async function () {
+        [owner, setter, withdrawer, user, ecdsaSigner, recipient] = await ethers.getSigners();
+        // Deploy Mock ERC20 Token
+        const MockERC20 = await ethers.getContractFactory("MockERC20");
+        erc20Token = (await MockERC20.deploy("Test Token", "TTK", 8, owner.address)) as unknown as MockERC20;
+        await erc20Token.waitForDeployment();
+        await erc20Token.mint(await user.getAddress(), ethers.parseUnits("100000", 18))
+    });
 
     beforeEach(async function () {
-        [owner, setter, withdrawer, user, ecdsaSigner, recipient, nonceTimesGenerator,] = await ethers.getSigners();
-
         // Deploy Mock Schnorr Verifier
         const schnorrVerifierFactory = await ethers.getContractFactory("SchnorrSECP256K1Verifier");
         schnorrVerifier = await schnorrVerifierFactory.deploy();
@@ -54,15 +57,11 @@ describe("Vault", function () {
         await vault.grantRole(signerRole, ecdsaSigner.address);
         await vault.grantRole(withdrawerRole, withdrawer.address);
 
-        // Deploy Mock ERC20 Token
-        const MockERC20 = await ethers.getContractFactory("MockERC20");
-        erc20Token = (await MockERC20.deploy("Test Token", "TTK", 8, owner.address)) as unknown as MockERC20;
-        await erc20Token.waitForDeployment();
-        await erc20Token.mint(await vault.getAddress(), ethers.parseUnits("1000", 18))
         await owner.sendTransaction({
             to: await vault.getAddress(),
             value: ethers.parseEther("1.0"),
         });
+        await erc20Token.connect(user).transfer(await vault.getAddress(), ethers.parseUnits("1000", 18));
     });
 
     describe("Initialization", function () {
@@ -151,30 +150,8 @@ describe("Vault", function () {
     });
 
     describe("Withdrawals", function () {
-        before(async () => {
-            await network.provider.request({
-                method: "hardhat_reset",
-                params: [
-                    {
-                        forking: {
-                            jsonRpcUrl: "https://polygon.drpc.org",
-                        },
-                    }
-                ]
-            });
-        });
 
-        beforeEach(async function () {
-            const MockERC20 = await ethers.getContractFactory("MockERC20");
-            erc20Token = (new ethers.Contract(mockERC20Address, MockERC20.interface, owner)) as unknown as MockERC20;
-            // Impersonate the account
-            await ethers.provider.send("hardhat_impersonateAccount", [richAccountAddress]);
-            richAccount = await ethers.getSigner(richAccountAddress);
-            // Transfer tokens to Vault
-            await erc20Token.connect(richAccount).transfer(await vault.getAddress(), ethers.parseUnits("1000", 8));
-        });
-
-        it.only("should allow valid withdrawals with a correct Schnorr signature", async function () {
+        it("should allow valid withdrawals with a correct Schnorr signature", async function () {
             const amount = 10000;
             const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const previousBalance = await erc20Token.balanceOf(recipientAddress);
@@ -184,12 +161,6 @@ describe("Vault", function () {
                 ["address", "address", "uint256", "uint256", "uint256"],
                 [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
             );
-            console.log(recipientAddress, tokenAddress, amount, withdrawalId, chainId)
-            console.log(messageHash)
-            console.log(ethers.solidityPackedKeccak256(
-                ["bytes32"],
-                [messageHash]
-            ))
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
             await expect(
                 vault
@@ -199,7 +170,7 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0xe86f67eba27a75b9d4b0fd9416f89cddf0e38527515b0486699cb477c9f9cc98d880e12c4387ff891df2962c6c251ff40cf9cec85c51f3852f89216ae289a02d", // signature
+                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
                         shieldSignature
                     )
             )
@@ -211,11 +182,10 @@ describe("Vault", function () {
         });
 
         it("should revert if the withdrawalId is invalid", async function () {
-            const amount = 1000;
-            const recipientAddress = "0x2B3e5649A2Bfc3667b1db1A0ae7E1f9368d676A9";
-            const previousBalance = await erc20Token.balanceOf(recipientAddress);
+            const amount = 10000;
+            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const tokenAddress = await erc20Token.getAddress();
-            const withdrawalId = 0
+            const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
                 ["address", "address", "uint256", "uint256", "uint256"],
                 [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
@@ -227,7 +197,7 @@ describe("Vault", function () {
                 amount,
                 recipientAddress,
                 withdrawalId,
-                "0x88dbc8cb6e8df759831e086d995ca4b36bb2e60fbc07a20d8b1e98ab25aaaf82272eabebd14de73f5a83de44bc8c7cddef7761eac96d117dad11a25ee0e1e3ce", // signature
+                "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
                 shieldSignature
             );
             await expect(
@@ -238,21 +208,20 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x88dbc8cb6e8df759831e086d995ca4b36bb2e60fbc07a20d8b1e98ab25aaaf82272eabebd14de73f5a83de44bc8c7cddef7761eac96d117dad11a25ee0e1e3ce", // signature
+                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
                         shieldSignature
                     )
             ).to.be.revertedWithCustomError(vault, "InvalidWithdrawalId");
         });
 
         it("should not revert if the used nonce is reset", async function () {
-            const amount = 1000;
-            const recipientAddress = "0x2B3e5649A2Bfc3667b1db1A0ae7E1f9368d676A9";
-            const previousBalance = await erc20Token.balanceOf(recipientAddress);
+            const amount = 10000;
+            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const tokenAddress = await erc20Token.getAddress();
-            const withdrawID = 0
+            const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
                 ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, withdrawID, chainId]
+                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
             );
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
 
@@ -260,11 +229,11 @@ describe("Vault", function () {
                 tokenAddress,
                 amount,
                 recipientAddress,
-                withdrawID,
-                "0x88dbc8cb6e8df759831e086d995ca4b36bb2e60fbc07a20d8b1e98ab25aaaf82272eabebd14de73f5a83de44bc8c7cddef7761eac96d117dad11a25ee0e1e3ce", // signature
+                withdrawalId,
+                "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
                 shieldSignature
             );
-            await vault.connect(setter).resetWithdrawalID(withdrawID);
+            await vault.connect(setter).resetWithdrawalID(withdrawalId);
             await expect(
                 vault
                     .connect(user)
@@ -272,8 +241,8 @@ describe("Vault", function () {
                         tokenAddress,
                         amount,
                         recipientAddress,
-                        withdrawID,
-                        "0x88dbc8cb6e8df759831e086d995ca4b36bb2e60fbc07a20d8b1e98ab25aaaf82272eabebd14de73f5a83de44bc8c7cddef7761eac96d117dad11a25ee0e1e3ce", // signature
+                        withdrawalId,
+                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
                         shieldSignature
                     )
             )
@@ -282,12 +251,13 @@ describe("Vault", function () {
         });
 
         it("should revert if the schnorr signature is invalid", async function () {
+            const amount = 1000;
+            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const tokenAddress = await erc20Token.getAddress();
-            const amount = ethers.parseEther("10");
-            const withdrawlId = 0
+            const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
                 ["address", "address", "uint256", "uint256", "uint256"],
-                [recipient.address, tokenAddress, amount, withdrawlId, chainId]
+                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
             );
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
             await expect(
@@ -297,23 +267,23 @@ describe("Vault", function () {
                         await erc20Token.getAddress(),
                         amount,
                         recipient.address,
-                        withdrawlId,
-                        "0x98dbc8cb6e8df759831e086d995ca4b36bb2e60fbc07a20d8b1e98ab25aaaf82272eabebd14de73f5a83de44bc8c7cddef7761eac96d117dad11a25ee0e1e3ce", // signature
+                        withdrawalId,
+                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
                         shieldSignature
                     )
             ).to.be.revertedWithCustomError(vault, "InvalidSignature");
         });
 
         it("should revert if the ECDSA signature is invalid", async function () {
-            const amount = 1000;
-            const recipientAddress = "0x2B3e5649A2Bfc3667b1db1A0ae7E1f9368d676A9";
+            const amount = 10000;
+            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const tokenAddress = await erc20Token.getAddress();
-            const withdrawalId = 0
+            const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
                 ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, 1, chainId]
+                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
             );
-            const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            const shieldSignature = await recipient.signMessage(ethers.toBeArray(messageHash));
 
             await expect(
                 vault
@@ -323,7 +293,7 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x88dbc8cb6e8df759831e086d995ca4b36bb2e60fbc07a20d8b1e98ab25aaaf82272eabebd14de73f5a83de44bc8c7cddef7761eac96d117dad11a25ee0e1e3ce", // signature
+                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
                         shieldSignature
                     )
             ).to.be.revertedWithCustomError(vault, "InvalidSignature");
