@@ -74,8 +74,9 @@ const config: HardhatUserConfig = {
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
         },
         mainnet: {
-            url: `https://ethereum.publicnode.com`,
+            url: `https://lb.drpc.live/ethereum/${process.env.DRPC_API_KEY}`,
             accounts: [process.env.NEW_MAIN_DEPLOYER!],
+            chainId: 1,
         },
         bsc: {
             url: `https://bsc.rpc.blxrbdn.com`,
@@ -131,6 +132,16 @@ const config: HardhatUserConfig = {
                 "TRON-PRO-API-KEY": process.env.TRON_PRO_API_KEY!,
             },
         },
+        tron: {
+            url: "https://api.trongrid.io/jsonrpc", // JSON-RPC endpoint
+            chainId: 728126428,                            // Tron mainnet chain-id (EVM)
+            accounts: [process.env.TRON_PRIVATE_KEY!],
+            tron: true,                              // flag required by the plugin
+            gasPrice: 1_000_000_000,
+            httpHeaders: {
+                "TRON-PRO-API-KEY": process.env.TRON_PRO_API_KEY!,
+            },
+        },
     },
     namedAccounts: {
         deployer: 0,                               // hardhat-deploy nicety
@@ -143,20 +154,7 @@ const config: HardhatUserConfig = {
         currency: "USD",
     },
     etherscan: {
-        apiKey: {
-            polygon: process.env.POLYGON_API_KEY!,
-            arbitrumOne: process.env.ARBITRUM_API_KEY!,
-            blast: process.env.BLAST_API_KEY!,
-            base: process.env.BASE_API_KEY!,
-            optimisticEthereum: process.env.OPTIMIZEM_API_KEY!,
-            celo: process.env.CELO_API_KEY!,
-            frax: process.env.FRAX_API_KEY!,
-            metal: process.env.MEAL_API_KEY!,
-            sepolia: process.env.ETHERSCAN_API_KEY!,
-            holesky: process.env.ETHERSCAN_API_KEY!,
-            bsc: process.env.BSC_API_KEY!,
-            bsctest: process.env.BSC_API_KEY!,
-        },
+        apiKey: process.env.ETHERSCAN_API_KEY!,
         customChains: [
             {
                 network: "blast",
