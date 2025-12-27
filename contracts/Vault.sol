@@ -5,18 +5,24 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+
 import {ISchnorrSECP256K1Verifier} from "./Interfaces/ISchnorrSECP256K1Verifier.sol";
 import {IECDSAVerifier} from "./Interfaces/IECDSAVerifier.sol";
 
 contract Vault is
     Initializable,
-    AccessControlUpgradeable
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuardUpgradeable
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
     bytes32 public constant EMERGENCY_WITHDRAW_ROLE = keccak256("EMERGENCY_WITHDRAW_ROLE");
     bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
     bytes32 public constant SIGNER_ROLE = keccak256("SIGNER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     /// @dev Public key components for Schnorr signature verification.
     bytes public pubKey;
@@ -35,7 +41,6 @@ contract Vault is
     event EmergencyWithdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
     event PublicKeySet(bytes indexed pubKey);
     event VerifiersSet(address indexed schnorrVerifier, address indexed ecdsaVerifier);
-    event WithdrawalIdReset(uint256 index);
 
     // Custom Errors
     error InvalidWithdrawalId(uint256 WithdrawalID);
@@ -57,12 +62,16 @@ contract Vault is
      */
     function initialize(address admin_, address schnorrVerifier_, address ecdsaVerifier_, address signer_, bytes calldata pubKey_) external initializer {
         __AccessControl_init();
+        __Pausable_init();
+        __ReentrancyGuard_init();
+
         schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
         ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
         pubKey = pubKey_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(SIGNER_ROLE, signer_);
+        _grantRole(PAUSER_ROLE, admin_);
     }
 
     /**
@@ -76,17 +85,16 @@ contract Vault is
         emit VerifiersSet(schnorrVerifier_, ecdsaVerifier_);
     }
 
-    /**
-     * @dev Resets the used W\withdrawal ID.
-     * @notice This function is only for test in development phase and should be removed in production
-     * @param index_ To reset the used withdrawal ID from 0
-     */
-    function resetWithdrawalID(uint256 index_) external onlyRole(SETTER_ROLE) {
-        for(uint256 i = 0; i <= index_; i++){
-            withdrawalIdIsUsed[i] = false;
-        }
-        emit WithdrawalIdReset(index_);
-    }
+//    /**
+//     * @dev Resets the used W\withdrawal ID.
+//     * @notice This function is only for test in development phase and should be removed in production
+//     * @param index_ To reset the used withdrawal ID from 0
+//     */
+//    function resetWithdrawalID(uint256 index_) external onlyRole(SETTER_ROLE) {
+//        for(uint256 i = 0; i <= index_; i++){
+//            withdrawalIdIsUsed[i] = false;
+//        }
+//    }
 
     /**
      * @dev Updates the public key components.
@@ -95,6 +103,20 @@ contract Vault is
     function setPublicKey(bytes calldata pubKey_) external onlyRole(SETTER_ROLE) {
         pubKey = pubKey_;
         emit PublicKeySet(pubKey_);
+    }
+
+    /**
+     * @dev Pauses the contract.
+     */
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /**
+     * @dev Unpauses the contract.
+     */
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
     }
 
     // Fallback function to receive native tokens
@@ -116,7 +138,7 @@ contract Vault is
         uint256 withdrawalId_,
         bytes calldata signature_,
         bytes calldata shieldSignature_
-    ) external {
+    ) external whenNotPaused nonReentrant {
         if (recipient_ == address(0)) revert ZeroAddress();
         if (withdrawalIdIsUsed[withdrawalId_]) revert InvalidWithdrawalId(withdrawalId_);
 
@@ -149,7 +171,8 @@ contract Vault is
         address tokenAddress_,
         uint256 amount_,
         address recipient_
-    ) external onlyRole(EMERGENCY_WITHDRAW_ROLE) {
+    ) external onlyRole(EMERGENCY_WITHDRAW_ROLE) nonReentrant {
+        // NOTE: We do NOT add whenNotPaused here, so funds can be recovered even if paused.
         if (recipient_ == address(0)) revert ZeroAddress();
         if(tokenAddress_ == address(0)){
             (bool success, ) = recipient_.call{value: amount_}("");

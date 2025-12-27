@@ -73,7 +73,7 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
     }
 
     // Function to withdraw native tokens (e.g., Ether)
-    function transferNativeToken(uint256 _amount) external isOperator(msg.sender) {
+    function transferNativeToken(uint256 _amount) external isOperator(msg.sender) nonReentrant {
         if (_amount == 0) revert InvalidAmount();
         if (address(this).balance < _amount) revert InsufficientBalance();
 

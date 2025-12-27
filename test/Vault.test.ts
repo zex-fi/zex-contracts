@@ -10,18 +10,20 @@ describe("Vault", function () {
     let erc20Token: MockERC20;
     let owner: SignerWithAddress;
     let setter: SignerWithAddress;
+    let pauser: SignerWithAddress;
     let withdrawer: SignerWithAddress;
     let user: SignerWithAddress;
     let ecdsaSigner: SignerWithAddress;
     let recipient: SignerWithAddress;
     let setterRole: string;
+    let pauserRole: string;
     let signerRole: string;
     let withdrawerRole: string;
     const chainId = 137;
     const pubKey = "0x022dd9d16684d8d370a798ed7d26f3900afb5d67ddf55488cc75ddc57099391362";
 
     before(async function () {
-        [owner, setter, withdrawer, user, ecdsaSigner, recipient] = await ethers.getSigners();
+        [owner, setter, pauser, withdrawer, user, ecdsaSigner, recipient] = await ethers.getSigners();
         // Deploy Mock ERC20 Token
         const MockERC20 = await ethers.getContractFactory("MockERC20");
         erc20Token = (await MockERC20.deploy("Test Token", "TTK", 8, owner.address)) as unknown as MockERC20;
@@ -53,9 +55,11 @@ describe("Vault", function () {
         setterRole = await vault.SETTER_ROLE();
         signerRole = await vault.SIGNER_ROLE();
         withdrawerRole = await vault.EMERGENCY_WITHDRAW_ROLE();
+        pauserRole = await vault.PAUSER_ROLE();
         await vault.grantRole(setterRole, setter.address);
         await vault.grantRole(signerRole, ecdsaSigner.address);
         await vault.grantRole(withdrawerRole, withdrawer.address);
+        await vault.grantRole(pauserRole, pauser.address);
 
         await owner.sendTransaction({
             to: await vault.getAddress(),
@@ -97,8 +101,45 @@ describe("Vault", function () {
         });
     });
 
+    describe("Pause", function () {
+        it("should allow the pauser to pause", async function () {
+            await expect(vault.connect(pauser).pause()).not.to.be.reverted;
+        });
+
+        it("should allow the pauser to unpause", async function () {
+            await vault.connect(pauser).pause();
+            await expect(vault.connect(pauser).unpause()).not.to.be.reverted;
+        });
+
+        it("should revert when the user want to pause", async function () {
+            await expect(vault.connect(user).pause()).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
+        });
+
+        it("should revert when the user want to unpause", async function () {
+            await expect(vault.connect(user).unpause()).to.be.revertedWith(/AccessControl: account .* is missing role .*/);
+        });
+    });
+
     describe("Emergency Withdrawals", function () {
         it("should allow the withdrawer to perform emergency withdrawals", async function () {
+            const amount = ethers.parseUnits("500", 8);
+            const previousBalance = await erc20Token.balanceOf(recipient.address);
+
+            await expect(
+                vault
+                    .connect(withdrawer)
+                    .emergencyWithdrawERC20(await erc20Token.getAddress(), amount, recipient.address)
+            )
+                .to.emit(vault, "EmergencyWithdrawal")
+                .withArgs(await erc20Token.getAddress(), recipient.address, amount);
+
+            expect(await erc20Token.balanceOf(recipient.address) - previousBalance).to.equal(amount);
+        });
+
+        it("should allow the withdrawer to perform emergency withdrawals even if paused", async function () {
+            await vault.connect(pauser).pause();
+            const previousBalance = await erc20Token.balanceOf(recipient.address);
+
             const amount = ethers.parseUnits("500", 8);
             await expect(
                 vault
@@ -108,7 +149,7 @@ describe("Vault", function () {
                 .to.emit(vault, "EmergencyWithdrawal")
                 .withArgs(await erc20Token.getAddress(), recipient.address, amount);
 
-            expect(await erc20Token.balanceOf(recipient.address)).to.equal(amount);
+            expect(await erc20Token.balanceOf(recipient.address)-previousBalance).to.equal(amount);
         });
 
         it("should allow the withdrawer to perform emergency withdrawals", async function () {
@@ -181,6 +222,81 @@ describe("Vault", function () {
             expect(await vault.withdrawalIdIsUsed(withdrawalId)).to.equal(true); // Nonce incremented
         });
 
+        it("should revert valid withdrawals if the Vault is paused", async function () {
+            await vault.connect(pauser).pause();
+
+            const amount = 10000;
+            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
+            const tokenAddress = await erc20Token.getAddress();
+            const withdrawalId = 2534
+            const messageHash = ethers.solidityPackedKeccak256(
+                ["address", "address", "uint256", "uint256", "uint256"],
+                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
+            );
+            const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            await expect(
+                vault
+                    .connect(user)
+                    .withdraw(
+                        tokenAddress,
+                        amount,
+                        recipientAddress,
+                        withdrawalId,
+                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        shieldSignature
+                    )
+            )
+                .to.revertedWith("Pausable: paused");
+        });
+
+        it("should allow valid withdrawals if the Vault is unpaused", async function () {
+            await vault.connect(pauser).pause();
+
+            const amount = 10000;
+            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
+            const previousBalance = await erc20Token.balanceOf(recipientAddress);
+            const tokenAddress = await erc20Token.getAddress();
+            const withdrawalId = 2534
+            const messageHash = ethers.solidityPackedKeccak256(
+                ["address", "address", "uint256", "uint256", "uint256"],
+                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
+            );
+            const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            await expect(
+                vault
+                    .connect(user)
+                    .withdraw(
+                        tokenAddress,
+                        amount,
+                        recipientAddress,
+                        withdrawalId,
+                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        shieldSignature
+                    )
+            )
+                .to.revertedWith("Pausable: paused");
+
+            await vault.connect(pauser).unpause();
+
+            await expect(
+                vault
+                    .connect(user)
+                    .withdraw(
+                        tokenAddress,
+                        amount,
+                        recipientAddress,
+                        withdrawalId,
+                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        shieldSignature
+                    )
+            )
+                .to.emit(vault, "Withdrawal")
+                .withArgs(await erc20Token.getAddress(), recipientAddress, amount);
+
+            expect(await erc20Token.balanceOf(recipientAddress) - previousBalance).to.equal(amount);
+            expect(await vault.withdrawalIdIsUsed(withdrawalId)).to.equal(true); // Nonce incremented
+        });
+
         it("should revert if the withdrawalId is invalid", async function () {
             const amount = 10000;
             const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
@@ -212,42 +328,6 @@ describe("Vault", function () {
                         shieldSignature
                     )
             ).to.be.revertedWithCustomError(vault, "InvalidWithdrawalId");
-        });
-
-        it("should not revert if the used nonce is reset", async function () {
-            const amount = 10000;
-            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
-            const tokenAddress = await erc20Token.getAddress();
-            const withdrawalId = 2534
-            const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
-            );
-            const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
-
-            vault.connect(user).withdraw(
-                tokenAddress,
-                amount,
-                recipientAddress,
-                withdrawalId,
-                "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
-                shieldSignature
-            );
-            await vault.connect(setter).resetWithdrawalID(withdrawalId);
-            await expect(
-                vault
-                    .connect(user)
-                    .withdraw(
-                        tokenAddress,
-                        amount,
-                        recipientAddress,
-                        withdrawalId,
-                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
-                        shieldSignature
-                    )
-            )
-                .to.emit(vault, "Withdrawal")
-                .withArgs(await erc20Token.getAddress(), recipientAddress, amount);
         });
 
         it("should revert if the schnorr signature is invalid", async function () {
