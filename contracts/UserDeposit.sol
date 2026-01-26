@@ -13,6 +13,8 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
 
     bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
 
+    mapping(address => uint256) public cumulativeTokenTransferred;
+
     // Custom errors
     error ZeroAddress();
     error InvalidAmount();
@@ -55,6 +57,7 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
 
         IERC20 token = IERC20(_token);
         if (token.balanceOf(address(this)) < _amount) revert InsufficientBalance();
+        cumulativeTokenTransferred[_token] += _amount;
         address vault = UserDepositFactory(factoryAddress).vault();
         token.safeTransfer(vault, _amount);
 
@@ -96,5 +99,11 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
         if (_factoryAddress == address(0)) revert ZeroAddress();
         factoryAddress = _factoryAddress;
         emit FactoryAddressSet(_factoryAddress);
+    }
+
+    function getStateForERC20(address _token) public view returns(uint256 balanceOf, uint256 cumulativeTransferred){
+        IERC20 token = IERC20(_token);
+        balanceOf = token.balanceOf(address(this));
+        cumulativeTransferred = cumulativeTokenTransferred[_token];
     }
 }
