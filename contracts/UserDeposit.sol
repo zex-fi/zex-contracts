@@ -79,6 +79,7 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
     function transferNativeToken(uint256 _amount) external isOperator(msg.sender) nonReentrant {
         if (_amount == 0) revert InvalidAmount();
         if (address(this).balance < _amount) revert InsufficientBalance();
+        cumulativeTokenTransferred[address(0)] += _amount;
 
         address vault = UserDepositFactory(factoryAddress).vault();
         (bool success, ) = vault.call{value: _amount}("");
@@ -101,9 +102,14 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
         emit FactoryAddressSet(_factoryAddress);
     }
 
-    function getStateForERC20(address _token) public view returns(uint256 balanceOf, uint256 cumulativeTransferred){
-        IERC20 token = IERC20(_token);
-        balanceOf = token.balanceOf(address(this));
+    function getStateForToken(address _token) public view returns(uint256 balanceOf, uint256 cumulativeTransferred){
+        if(_token == address(0)){
+            balanceOf = address(this).balance;
+        }
+        else {
+            IERC20 token = IERC20(_token);
+            balanceOf = token.balanceOf(address(this));
+        }
         cumulativeTransferred = cumulativeTokenTransferred[_token];
     }
 }

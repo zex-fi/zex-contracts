@@ -59,13 +59,13 @@ describe("UserDeposit", function () {
         it("Should transfer ERC20 tokens", async function () {
             const userDepositBalance = await erc20Token.balanceOf(await userDeposit.getAddress());
             const amount = ethers.parseEther("10");
-            expect(await userDeposit.getStateForERC20(erc20Token.getAddress())).to.deep.equal([userDepositBalance, 0]);
+            expect(await userDeposit.getStateForToken(erc20Token.getAddress())).to.deep.equal([userDepositBalance, 0]);
             await expect(userDeposit.connect(operator).transferERC20(erc20Token.getAddress(), amount))
                 .to.emit(userDeposit, "ERC20Transferred")
                 .withArgs(erc20Token.getAddress(), await vault.getAddress(), amount);
 
             expect(await erc20Token.balanceOf(await vault.getAddress())).to.equal(amount);
-            expect(await userDeposit.getStateForERC20(erc20Token.getAddress())).to.deep.equal([userDepositBalance - amount, amount]);
+            expect(await userDeposit.getStateForToken(erc20Token.getAddress())).to.deep.equal([userDepositBalance - amount, amount]);
         });
 
         it("Should revert if called by non-transferrer", async function () {
@@ -134,9 +134,13 @@ describe("UserDeposit", function () {
 
         it("Should transfer native tokens", async function () {
             const amount = ethers.parseEther("0.5");
+            const userDepositBalance = await ethers.provider.getBalance(await userDeposit.getAddress());
+
+            expect(await userDeposit.getStateForToken(ZeroAddress)).to.deep.equal([userDepositBalance, 0]);
             await expect(userDeposit.connect(operator).transferNativeToken(amount))
                 .to.emit(userDeposit, "NativeTokenTransferred")
                 .withArgs(await vault.getAddress(), amount);
+            expect(await userDeposit.getStateForToken(ZeroAddress)).to.deep.equal([userDepositBalance - amount, amount]);
 
             const userBalance = await ethers.provider.getBalance(await vault.getAddress());
             expect(userBalance).to.be.gte(amount); // Check that the user's balance increased
