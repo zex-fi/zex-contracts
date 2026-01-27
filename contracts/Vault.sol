@@ -74,6 +74,9 @@ contract Vault is
     }
 
     function _setVerifiers(address schnorrVerifier_, address ecdsaVerifier_) internal {
+        if (schnorrVerifier_ == address(0) || ecdsaVerifier_ == address(0)) {
+            revert ZeroAddress();
+        }
         schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
         ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
         emit VerifiersSet(schnorrVerifier_, ecdsaVerifier_);
