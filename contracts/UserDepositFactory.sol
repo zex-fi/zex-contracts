@@ -87,8 +87,8 @@ contract UserDepositFactory is AccessControl {
         _setVault(vault_);
     }
 
-    function setDefaultAdminAddress(address DefaultAdminAddress_) external onlyRole(SETTER_ROLE) {
-        _setDefaultAdminAddress(DefaultAdminAddress_);
+    function setDefaultAdminAddress(address defaultAdminAddress_) external onlyRole(SETTER_ROLE) {
+        _setDefaultAdminAddress(defaultAdminAddress_);
     }
 
     function _setVault(address vault_) internal {
