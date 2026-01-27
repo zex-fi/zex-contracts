@@ -27,9 +27,7 @@ contract ECDSAVerifier {
         }
 
         // Prevents signature malleability by requiring 's' to be in the lower half of the curve order
-        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
-            revert("Invalid signature 's' value");
-        }
+        require(uint256(s) <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0, "Invalid signature 's' value");
 
         // Adjust v for compatibility with `ecrecover`
         if (v < 27) {
