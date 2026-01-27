@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 contract ECDSAVerifier {
     /**
      * @dev Recovers the signer address from the given message hash and signature.
-     * @param messageHash Hash of the signed message (prefixed with "\x19Ethereum Signed Message:\n32").
+     * @param messageHash Hash of the raw data (will be prefixed with "\x19Ethereum Signed Message:\n32" internally).
      * @param signature The signature to verify.
      * @return recoveredSigner The address of the recovered signer.
      */
@@ -26,6 +26,11 @@ contract ECDSAVerifier {
             v := byte(0, mload(add(signature, 0x60)))
         }
 
+        // Prevents signature malleability by requiring 's' to be in the lower half of the curve order
+        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
+            revert("Invalid signature 's' value");
+        }
+
         // Adjust v for compatibility with `ecrecover`
         if (v < 27) {
             v += 27;
@@ -36,6 +41,9 @@ contract ECDSAVerifier {
 
         // Recover the signer address
         recoveredSigner = ecrecover(getEthSignedMessageHash(messageHash), v, r, s);
+
+        // ecrecover returns address(0) on error
+        require(recoveredSigner != address(0), "Invalid signature");
     }
 
     /**
