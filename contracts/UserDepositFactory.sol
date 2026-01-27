@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./UserDeposit.sol";
-import "hardhat/console.sol";
 
 contract UserDepositFactory is AccessControl {
 
