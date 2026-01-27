@@ -30,20 +30,31 @@ describe("UserDepositFactory", function () {
     });
 
     describe("Setters", function () {
-        it("should allow the setter to set the verifiers", async function () {
+        it("should allow the setter to set the vault and defaultAdminAddress", async function () {
             await factory.connect(setter).setVault(toAccount.address);
             expect(await factory.vault()).to.equal(toAccount.address);
+
+            await factory.connect(setter).setDefaultAdminAddress(toAccount.address);
+            expect(await factory.defaultAdminAddress()).to.equal(toAccount.address);
         });
 
-        it("should not allow the setter to set the verifiers with zero address", async function () {
+        it("should not allow the setter to set the vault and the defaultAdminAddress with zero address", async function () {
             await expect(
                 factory.connect(setter).setVault(ethers.ZeroAddress)
             ).to.be.revertedWithCustomError(factory, "ZeroAddress");
+
+            await expect(
+                factory.connect(setter).setDefaultAdminAddress(ethers.ZeroAddress)
+            ).to.be.revertedWithCustomError(factory, "ZeroAddress");
         });
 
-        it("should not allow the user to set the verifiers", async function () {
+        it("should not allow the user to set the vault and the defaultAdminAddress", async function () {
             await expect(
                 factory.connect(toAccount).setVault(toAccount.address)
+            ).to.be.revertedWithCustomError(factory, "AccessControlUnauthorizedAccount");
+
+            await expect(
+                factory.connect(toAccount).setDefaultAdminAddress(toAccount.address)
             ).to.be.revertedWithCustomError(factory, "AccessControlUnauthorizedAccount");
         });
     });
