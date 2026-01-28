@@ -122,6 +122,11 @@ contract Vault is
     // Fallback function to receive native tokens
     receive() external payable {}
 
+    // Function to allow the contract to receive ERC721 tokens
+    function onERC721Received(address, address, uint256, bytes memory) public pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
     /**
      * @dev Allows a user to withdraw tokens after verifying the Schnorr signature.
      * @param tokenAddress_ The address of the ERC20 token to withdraw.
