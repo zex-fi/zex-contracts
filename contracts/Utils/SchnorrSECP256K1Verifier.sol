@@ -8,7 +8,7 @@ contract SchnorrSECP256K1Verifier {
         0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141;
     uint256 public constant P = 
         // Field modulus of secp256k1
-        P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
+        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
 
     // BIP-0340 challenge hash TAG
     bytes32 public constant TAG_CHALLENGE_HASH = sha256("BIP0340/challenge");
@@ -84,13 +84,14 @@ contract SchnorrSECP256K1Verifier {
             )
         ) % Q;
 
-        // Verify the Schnorr equation: s*G == R + e*P, where:
+        // Verify the Schnorr equation: R == s*G - e*P, where:
         // - s is the signature scalar
         // - R is the nonce public key (x-coordinate of the ephemeral point)
         // - P is the signer public key
         // - e = sha256(BIP0340/challenge || R || pubKeyX || msgHash) mod Q
         //
         // We simulate elliptic curve multiplication using ecrecover as described here:
+        // https://hackmd.io/@nZ-twauPRISEa6G9zg3XRw/SyjJzSLt9
         // https://ethresear.ch/t/you-can-kinda-abuse-ecrecover-to-do-ecmul-in-secp256k1-today/2384/9
         // https://crypto.stackexchange.com/a/18106
         //
