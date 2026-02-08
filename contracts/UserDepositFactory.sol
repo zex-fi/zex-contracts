@@ -14,6 +14,7 @@ contract UserDepositFactory is AccessControl {
 
     event Deployed(address indexed addr, uint256 salt);
     event VaultSet(address indexed vault);
+    event DefaultAdminAddressSet(address indexed defaultAdminAddress);
 
     address public defaultAdminAddress;
     address public vault;
@@ -30,7 +31,7 @@ contract UserDepositFactory is AccessControl {
         _grantRole(DEPLOYER_ROLE, factoryAdmin_);
         _grantRole(OPERATOR_ROLE, operator_);
 
-        defaultAdminAddress = defaultAdmin_;
+        _setDefaultAdminAddress(defaultAdmin_);
         _setVault(vault_);
     }
 
@@ -75,9 +76,19 @@ contract UserDepositFactory is AccessControl {
         _setVault(vault_);
     }
 
+    function setDefaultAdminAddress(address defaultAdminAddress_) external onlyRole(SETTER_ROLE) {
+        _setDefaultAdminAddress(defaultAdminAddress_);
+    }
+
     function _setVault(address vault_) internal {
         if (vault_ == address(0)) revert ZeroAddress();
         vault = vault_;
         emit VaultSet(vault_);
+    }
+
+    function _setDefaultAdminAddress(address defaultAdminAddress_) internal {
+        if (defaultAdminAddress_ == address(0)) revert ZeroAddress();
+        defaultAdminAddress = defaultAdminAddress_;
+        emit DefaultAdminAddressSet(defaultAdminAddress_);
     }
 }
