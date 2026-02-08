@@ -130,7 +130,7 @@ describe("Vault", function () {
                     .connect(withdrawer)
                     .emergencyWithdrawERC20(await erc20Token.getAddress(), amount, recipient.address)
             )
-                .to.emit(vault, "EmergencyWithdrawal")
+                .to.emit(vault, "EmergencyWithdrawalERC20")
                 .withArgs(await erc20Token.getAddress(), recipient.address, amount);
 
             expect(await erc20Token.balanceOf(recipient.address) - previousBalance).to.equal(amount);
@@ -146,7 +146,7 @@ describe("Vault", function () {
                     .connect(withdrawer)
                     .emergencyWithdrawERC20(await erc20Token.getAddress(), amount, recipient.address)
             )
-                .to.emit(vault, "EmergencyWithdrawal")
+                .to.emit(vault, "EmergencyWithdrawalERC20")
                 .withArgs(await erc20Token.getAddress(), recipient.address, amount);
 
             expect(await erc20Token.balanceOf(recipient.address)-previousBalance).to.equal(amount);
@@ -161,7 +161,7 @@ describe("Vault", function () {
                     .connect(withdrawer)
                     .emergencyWithdrawERC20(ethers.ZeroAddress, amount, recipient.address)
             )
-                .to.emit(vault, "EmergencyWithdrawal")
+                .to.emit(vault, "EmergencyWithdrawalERC20")
                 .withArgs(ethers.ZeroAddress, recipient.address, amount);
 
             expect(await ethers.provider.getBalance(recipient.address)).to.equal(recipientBalance + amount);
