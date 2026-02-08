@@ -35,19 +35,9 @@ contract UserDepositFactory is AccessControl {
     }
 
     function deploy(uint256 salt) external onlyRole(DEPLOYER_ROLE) returns (address userDepositAddress) {
-        bytes memory bytecode = getBytecode();
-
-        // using inline assembly: load data and length of data, then call CREATE2.
-        assembly { // solhint-disable-line
-            let encoded_data := add(0x20, bytecode)     // load initialization code.
-            let encoded_size := mload(bytecode)         // load the init code's length.
-            userDepositAddress := create2(              // call CREATE2 with 4 arguments.
-                callvalue(),                            // forward any attached value.
-                encoded_data,                           // pass in initialization code.
-                encoded_size,                           // pass in init code's length.
-                salt                                    // pass in the salt value.
-            )
-        }
+        userDepositAddress = address(
+            new UserDeposit{salt: bytes32(salt)}(defaultAdminAddress, address(this))
+        );
 
         // ensure that the contract address is not equal to the null address.
         if (userDepositAddress == address(0)) revert ZeroAddress();
