@@ -65,13 +65,26 @@ contract Vault is
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
-        ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
-        pubKey = pubKey_;
+        _setVerifiers(schnorrVerifier_, ecdsaVerifier_);
+        _setPublicKey(pubKey_);
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(SIGNER_ROLE, signer_);
         _grantRole(PAUSER_ROLE, admin_);
+    }
+
+    function _setVerifiers(address schnorrVerifier_, address ecdsaVerifier_) internal {
+        if (schnorrVerifier_ == address(0) || ecdsaVerifier_ == address(0)) {
+            revert ZeroAddress();
+        }
+        schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
+        ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
+        emit VerifiersSet(schnorrVerifier_, ecdsaVerifier_);
+    }
+
+    function _setPublicKey(bytes calldata pubKey_) internal {
+        pubKey = pubKey_;
+        emit PublicKeySet(pubKey_);
     }
 
     /**
@@ -80,9 +93,7 @@ contract Vault is
      * @param ecdsaVerifier_ Address of the new ECDSA verifier contract.
      */
     function setVerifiers(address schnorrVerifier_, address ecdsaVerifier_) external onlyRole(SETTER_ROLE) {
-        schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
-        ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
-        emit VerifiersSet(schnorrVerifier_, ecdsaVerifier_);
+        _setVerifiers(schnorrVerifier_, ecdsaVerifier_);
     }
 
 //    /**
@@ -101,8 +112,7 @@ contract Vault is
      * @param pubKey_ The new public key.
      */
     function setPublicKey(bytes calldata pubKey_) external onlyRole(SETTER_ROLE) {
-        pubKey = pubKey_;
-        emit PublicKeySet(pubKey_);
+        _setPublicKey(pubKey_);
     }
 
     /**
