@@ -2,6 +2,7 @@ import {expect} from "chai";
 import {ethers, upgrades, network} from "hardhat";
 import {SignerWithAddress} from "@nomicfoundation/hardhat-ethers/signers";
 import {Vault, SchnorrSECP256K1Verifier, ECDSAVerifier, MockERC20} from "../typechain-types";
+import { frostDkg, frostSign, frostVerify } from "./utils/frost.ts";
 
 describe("Vault", function () {
     let vault: Vault;
@@ -20,7 +21,12 @@ describe("Vault", function () {
     let signerRole: string;
     let withdrawerRole: string;
     const chainId = 137;
-    const pubKey = "0x022dd9d16684d8d370a798ed7d26f3900afb5d67ddf55488cc75ddc57099391362";
+
+    let dKey = frostDkg(3, 2);
+    while (dKey.pubkeyPackage.verifying_key.substr(0, 2) != "02") {
+        dKey = frostDkg(3, 2);
+    }
+    const pubKey = "0x" + dKey.pubkeyPackage.verifying_key;
 
     before(async function () {
         [owner, setter, pauser, withdrawer, user, ecdsaSigner, recipient] = await ethers.getSigners();
@@ -194,15 +200,22 @@ describe("Vault", function () {
 
         it("should allow valid withdrawals with a correct Schnorr signature", async function () {
             const amount = 10000;
+            const expirationTime = 1970452537;
             const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const previousBalance = await erc20Token.balanceOf(recipientAddress);
             const tokenAddress = await erc20Token.getAddress();
             const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
+                ["address", "uint256", "address", "uint256", "uint256", "uint256"],
+                [tokenAddress, amount, recipientAddress, withdrawalId, expirationTime, chainId]
             );
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            const schnorrSignature = frostSign(messageHash.replace("0x", ""), dKey);
+            expect(frostVerify(schnorrSignature, messageHash.replace("0x", ""), dKey.pubkeyPackage)).to.be.true;
+
+            let noncePub = ethers.SigningKey.computePublicKey("0x02" + schnorrSignature.substr(0, 32 * 2), false);
+            let nonceAddr = ethers.computeAddress(noncePub);
+
             await expect(
                 vault
                     .connect(user)
@@ -211,7 +224,9 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        expirationTime,
+                        "0x" + schnorrSignature, // signature
+                        nonceAddr,
                         shieldSignature
                     )
             )
@@ -225,15 +240,21 @@ describe("Vault", function () {
         it("should revert valid withdrawals if the Vault is paused", async function () {
             await vault.connect(pauser).pause();
 
+            const expirationTime = 1970452537;
             const amount = 10000;
             const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const tokenAddress = await erc20Token.getAddress();
             const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
+                ["address", "uint256", "address", "uint256", "uint256", "uint256"],
+                [tokenAddress, amount, recipientAddress, withdrawalId, expirationTime, chainId]
             );
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            const schnorrSignature = frostSign(messageHash.replace("0x", ""), dKey);
+            expect(frostVerify(schnorrSignature, messageHash.replace("0x", ""), dKey.pubkeyPackage)).to.be.true;
+
+            let noncePub = ethers.SigningKey.computePublicKey("0x02" + schnorrSignature.substr(0, 32 * 2), false);
+            let nonceAddr = ethers.computeAddress(noncePub);
             await expect(
                 vault
                     .connect(user)
@@ -242,7 +263,9 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        expirationTime,
+                        "0x" + schnorrSignature, // signature
+                        nonceAddr,
                         shieldSignature
                     )
             )
@@ -253,15 +276,21 @@ describe("Vault", function () {
             await vault.connect(pauser).pause();
 
             const amount = 10000;
+            const expirationTime = 1970452537;
             const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const previousBalance = await erc20Token.balanceOf(recipientAddress);
             const tokenAddress = await erc20Token.getAddress();
             const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
+                ["address", "uint256", "address", "uint256", "uint256", "uint256"],
+                [tokenAddress, amount, recipientAddress, withdrawalId, expirationTime, chainId]
             );
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            const schnorrSignature = frostSign(messageHash.replace("0x", ""), dKey);
+            expect(frostVerify(schnorrSignature, messageHash.replace("0x", ""), dKey.pubkeyPackage)).to.be.true;
+
+            let noncePub = ethers.SigningKey.computePublicKey("0x02" + schnorrSignature.substr(0, 32 * 2), false);
+            let nonceAddr = ethers.computeAddress(noncePub);
             await expect(
                 vault
                     .connect(user)
@@ -270,7 +299,9 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        expirationTime,
+                        "0x" + schnorrSignature, // signature
+                        nonceAddr,
                         shieldSignature
                     )
             )
@@ -286,7 +317,9 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        expirationTime,
+                        "0x" + schnorrSignature, // signature
+                        nonceAddr,
                         shieldSignature
                     )
             )
@@ -299,21 +332,28 @@ describe("Vault", function () {
 
         it("should revert if the withdrawalId is invalid", async function () {
             const amount = 10000;
+            const expirationTime = 1970452537;
             const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const tokenAddress = await erc20Token.getAddress();
             const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
+                ["address", "uint256", "address", "uint256", "uint256", "uint256"],
+                [tokenAddress, amount, recipientAddress, withdrawalId, expirationTime, chainId]
             );
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            const schnorrSignature = frostSign(messageHash.replace("0x", ""), dKey);
+            expect(frostVerify(schnorrSignature, messageHash.replace("0x", ""), dKey.pubkeyPackage)).to.be.true;
 
-            vault.connect(user).withdraw(
+            let noncePub = ethers.SigningKey.computePublicKey("0x02" + schnorrSignature.substr(0, 32 * 2), false);
+            let nonceAddr = ethers.computeAddress(noncePub);
+            await vault.connect(user).withdraw(
                 tokenAddress,
                 amount,
                 recipientAddress,
                 withdrawalId,
-                "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                expirationTime,
+                "0x" + schnorrSignature, // signature
+                nonceAddr,
                 shieldSignature
             );
             await expect(
@@ -324,7 +364,9 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        expirationTime,
+                        "0x" + schnorrSignature, // signature
+                        nonceAddr,
                         shieldSignature
                     )
             ).to.be.revertedWithCustomError(vault, "InvalidWithdrawalId");
@@ -332,23 +374,31 @@ describe("Vault", function () {
 
         it("should revert if the schnorr signature is invalid", async function () {
             const amount = 1000;
+            const expirationTime = 1970452537;
             const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const tokenAddress = await erc20Token.getAddress();
             const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
+                ["address", "uint256", "address", "uint256", "uint256", "uint256"],
+                [tokenAddress, amount, recipientAddress, withdrawalId, expirationTime, chainId]
             );
             const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            const schnorrSignature = frostSign(messageHash.replace("0x", ""), dKey);
+            expect(frostVerify(schnorrSignature, messageHash.replace("0x", ""), dKey.pubkeyPackage)).to.be.true;
+
+            let noncePub = ethers.SigningKey.computePublicKey("0x02" + schnorrSignature.substr(0, 32 * 2), false);
+            let nonceAddr = ethers.computeAddress(noncePub);
             await expect(
                 vault
                     .connect(user)
                     .withdraw(
                         await erc20Token.getAddress(),
                         amount,
-                        recipient.address,
+                        recipientAddress,
                         withdrawalId,
-                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        expirationTime,
+                        "0x" + "1".repeat(schnorrSignature.length), // signature
+                        nonceAddr,
                         shieldSignature
                     )
             ).to.be.revertedWithCustomError(vault, "InvalidSignature");
@@ -356,15 +406,20 @@ describe("Vault", function () {
 
         it("should revert if the ECDSA signature is invalid", async function () {
             const amount = 10000;
+            const expirationTime = 1970452537;
             const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
             const tokenAddress = await erc20Token.getAddress();
             const withdrawalId = 2534
             const messageHash = ethers.solidityPackedKeccak256(
-                ["address", "address", "uint256", "uint256", "uint256"],
-                [recipientAddress, tokenAddress, amount, withdrawalId, chainId]
+                ["address", "uint256", "address", "uint256", "uint256", "uint256"],
+                [tokenAddress, amount, recipientAddress, withdrawalId, expirationTime, chainId]
             );
             const shieldSignature = await recipient.signMessage(ethers.toBeArray(messageHash));
+            const schnorrSignature = frostSign(messageHash.replace("0x", ""), dKey);
+            expect(frostVerify(schnorrSignature, messageHash.replace("0x", ""), dKey.pubkeyPackage)).to.be.true;
 
+            let noncePub = ethers.SigningKey.computePublicKey("0x02" + schnorrSignature.substr(0, 32 * 2), false);
+            let nonceAddr = ethers.computeAddress(noncePub);
             await expect(
                 vault
                     .connect(user)
@@ -373,10 +428,46 @@ describe("Vault", function () {
                         amount,
                         recipientAddress,
                         withdrawalId,
-                        "0x80e6b8f0160376b8ec5b284fbdb19d6061bf630317822b8ca0470285182f534d731b1853119f4489b0e046cd6bc640e64b554481a83f3e61ce4da1737ffc5220", // signature
+                        expirationTime,
+                        "0x" + schnorrSignature, // signature
+                        nonceAddr,
                         shieldSignature
                     )
             ).to.be.revertedWithCustomError(vault, "InvalidSignature");
+        });
+
+        it("should revert if signature is expired", async function () {
+            const amount = 10000;
+            const blockNumber = await ethers.provider.getBlockNumber();
+            const block = await ethers.provider.getBlock(blockNumber);
+            const expirationTime = block.timestamp - 1;
+            const recipientAddress = "0xbA00Eb3db6AC9C1C1203920183AAAb182C137fd8";
+            const tokenAddress = await erc20Token.getAddress();
+            const withdrawalId = 2534
+            const messageHash = ethers.solidityPackedKeccak256(
+                ["address", "uint256", "address", "uint256", "uint256", "uint256"],
+                [tokenAddress, amount, recipientAddress, withdrawalId, expirationTime, chainId]
+            );
+            const shieldSignature = await ecdsaSigner.signMessage(ethers.toBeArray(messageHash));
+            const schnorrSignature = frostSign(messageHash.replace("0x", ""), dKey);
+            expect(frostVerify(schnorrSignature, messageHash.replace("0x", ""), dKey.pubkeyPackage)).to.be.true;
+
+            let noncePub = ethers.SigningKey.computePublicKey("0x02" + schnorrSignature.substr(0, 32 * 2), false);
+            let nonceAddr = ethers.computeAddress(noncePub);
+            await expect(
+                vault
+                    .connect(user)
+                    .withdraw(
+                        tokenAddress,
+                        amount,
+                        recipientAddress,
+                        withdrawalId,
+                        expirationTime,
+                        "0x" + schnorrSignature, // signature
+                        nonceAddr,
+                        shieldSignature
+                    )
+            ).to.be.revertedWithCustomError(vault, "SignatureExpired");
         });
     });
 });

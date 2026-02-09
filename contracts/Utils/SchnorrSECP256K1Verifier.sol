@@ -35,7 +35,7 @@ contract SchnorrSECP256K1Verifier {
         bytes calldata signature,
         uint256 msgHash,
         address nonceAddress
-    ) public pure returns (bool) {
+    ) external pure returns (bool) {
         require(publicKey.length == 33, "Public key must be 33 bytes");
         require(signature.length == 64, "Signature must be 64 bytes");
 

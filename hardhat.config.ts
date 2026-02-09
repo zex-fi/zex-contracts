@@ -143,20 +143,7 @@ const config: HardhatUserConfig = {
         currency: "USD",
     },
     etherscan: {
-        apiKey: {
-            polygon: process.env.POLYGON_API_KEY!,
-            arbitrumOne: process.env.ARBITRUM_API_KEY!,
-            blast: process.env.BLAST_API_KEY!,
-            base: process.env.BASE_API_KEY!,
-            optimisticEthereum: process.env.OPTIMIZEM_API_KEY!,
-            celo: process.env.CELO_API_KEY!,
-            frax: process.env.FRAX_API_KEY!,
-            metal: process.env.MEAL_API_KEY!,
-            sepolia: process.env.ETHERSCAN_API_KEY!,
-            holesky: process.env.ETHERSCAN_API_KEY!,
-            bsc: process.env.BSC_API_KEY!,
-            bsctest: process.env.BSC_API_KEY!,
-        },
+        apiKey: process.env.ETHERSCAN_API_KEY!,
         customChains: [
             {
                 network: "blast",
@@ -164,14 +151,6 @@ const config: HardhatUserConfig = {
                 urls: {
                     apiURL: "https://api.blastscan.io/api",
                     browserURL: "https://blastscan.io",
-                },
-            },
-            {
-                network: "sepolia",
-                chainId: 11155111,
-                urls: {
-                    apiURL: "https://api-sepolia.etherscan.io/api",
-                    browserURL: "https://sepolia.etherscan.io",
                 },
             },
             {
