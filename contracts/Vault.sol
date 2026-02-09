@@ -49,6 +49,7 @@ contract Vault is
     error InvalidSignature();
     error TokenTransferFailed();
     error ZeroAddress();
+    error SignatureExpired();
     error ContractNotTokenOwner();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -146,7 +147,9 @@ contract Vault is
      * @param amount_ The amount of tokens to withdraw.
      * @param recipient_ The recipient address for the withdrawal.
      * @param withdrawalId_ The user's withdrawal ID.
+     * @param expirationTime_ The Expiration Time of Withdrawal Signature.
      * @param signature_ The Schnorr signature.
+     * @param nonceAddress_ The Nonce Address for Schnorr signature.
      * @param shieldSignature_ The shield signature.
      */
     function withdraw(
@@ -154,18 +157,28 @@ contract Vault is
         uint256 amount_,
         address recipient_,
         uint256 withdrawalId_,
+        uint256 expirationTime_,
         bytes calldata signature_,
+        address nonceAddress_,
         bytes calldata shieldSignature_
     ) external whenNotPaused nonReentrant {
         if (recipient_ == address(0)) revert ZeroAddress();
         if (withdrawalIdIsUsed[withdrawalId_]) revert InvalidWithdrawalId(withdrawalId_);
+        if (expirationTime_ < block.timestamp) revert SignatureExpired();
 
         bytes32 msgHash = keccak256(
-            abi.encodePacked(recipient_, tokenAddress_, amount_, withdrawalId_, block.chainid)
+            abi.encodePacked(
+                tokenAddress_,
+                amount_,
+                recipient_,
+                withdrawalId_,
+                expirationTime_,
+                block.chainid
+            )
         );
 
         if (
-            !schnorrVerifier.verifySignature(pubKey, signature_, uint256(msgHash)) ||
+            !schnorrVerifier.verifySignature(pubKey, signature_, uint256(msgHash), nonceAddress_) ||
             !hasRole(SIGNER_ROLE, ecdsaVerifier.getSigner(msgHash, shieldSignature_))
         ) revert InvalidSignature();
 
