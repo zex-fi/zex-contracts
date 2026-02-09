@@ -13,6 +13,8 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
 
     bytes32 public constant SETTER_ROLE = keccak256("SETTER_ROLE");
 
+    mapping(address => uint256) public cumulativeTokenTransferred;
+
     // Custom errors
     error ZeroAddress();
     error InvalidAmount();
@@ -55,6 +57,7 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
 
         IERC20 token = IERC20(_token);
         if (token.balanceOf(address(this)) < _amount) revert InsufficientBalance();
+        cumulativeTokenTransferred[_token] += _amount;
         address vault = UserDepositFactory(factoryAddress).vault();
         token.safeTransfer(vault, _amount);
 
@@ -76,6 +79,7 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
     function transferNativeToken(uint256 _amount) external isOperator(msg.sender) nonReentrant {
         if (_amount == 0) revert InvalidAmount();
         if (address(this).balance < _amount) revert InsufficientBalance();
+        cumulativeTokenTransferred[address(0)] += _amount;
 
         address vault = UserDepositFactory(factoryAddress).vault();
         (bool success, ) = vault.call{value: _amount}("");
@@ -96,5 +100,16 @@ contract UserDeposit is AccessControl, ReentrancyGuard {
         if (_factoryAddress == address(0)) revert ZeroAddress();
         factoryAddress = _factoryAddress;
         emit FactoryAddressSet(_factoryAddress);
+    }
+
+    function getStateForToken(address _token) public view returns(uint256 balanceOf, uint256 cumulativeTransferred){
+        if(_token == address(0)){
+            balanceOf = address(this).balance;
+        }
+        else {
+            IERC20 token = IERC20(_token);
+            balanceOf = token.balanceOf(address(this));
+        }
+        cumulativeTransferred = cumulativeTokenTransferred[_token];
     }
 }

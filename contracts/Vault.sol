@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
@@ -38,7 +39,8 @@ contract Vault is
 
     // Events
     event Withdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
-    event EmergencyWithdrawal(address indexed tokenAddress, address indexed to, uint256 amount);
+    event EmergencyWithdrawalERC20(address indexed tokenAddress, address indexed to, uint256 amount);
+    event EmergencyWithdrawalERC721(address indexed tokenAddress, address indexed to, uint256 tokenId);
     event PublicKeySet(bytes indexed pubKey);
     event VerifiersSet(address indexed schnorrVerifier, address indexed ecdsaVerifier);
 
@@ -48,6 +50,7 @@ contract Vault is
     error TokenTransferFailed();
     error ZeroAddress();
     error SignatureExpired();
+    error ContractNotTokenOwner();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -66,13 +69,26 @@ contract Vault is
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
-        ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
-        pubKey = pubKey_;
+        _setVerifiers(schnorrVerifier_, ecdsaVerifier_);
+        _setPublicKey(pubKey_);
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(SIGNER_ROLE, signer_);
         _grantRole(PAUSER_ROLE, admin_);
+    }
+
+    function _setVerifiers(address schnorrVerifier_, address ecdsaVerifier_) internal {
+        if (schnorrVerifier_ == address(0) || ecdsaVerifier_ == address(0)) {
+            revert ZeroAddress();
+        }
+        schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
+        ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
+        emit VerifiersSet(schnorrVerifier_, ecdsaVerifier_);
+    }
+
+    function _setPublicKey(bytes calldata pubKey_) internal {
+        pubKey = pubKey_;
+        emit PublicKeySet(pubKey_);
     }
 
     /**
@@ -81,9 +97,7 @@ contract Vault is
      * @param ecdsaVerifier_ Address of the new ECDSA verifier contract.
      */
     function setVerifiers(address schnorrVerifier_, address ecdsaVerifier_) external onlyRole(SETTER_ROLE) {
-        schnorrVerifier = ISchnorrSECP256K1Verifier(schnorrVerifier_);
-        ecdsaVerifier = IECDSAVerifier(ecdsaVerifier_);
-        emit VerifiersSet(schnorrVerifier_, ecdsaVerifier_);
+        _setVerifiers(schnorrVerifier_, ecdsaVerifier_);
     }
 
 //    /**
@@ -102,8 +116,7 @@ contract Vault is
      * @param pubKey_ The new public key.
      */
     function setPublicKey(bytes calldata pubKey_) external onlyRole(SETTER_ROLE) {
-        pubKey = pubKey_;
-        emit PublicKeySet(pubKey_);
+        _setPublicKey(pubKey_);
     }
 
     /**
@@ -122,6 +135,11 @@ contract Vault is
 
     // Fallback function to receive native tokens
     receive() external payable {}
+
+    // Function to allow the contract to receive ERC721 tokens
+    function onERC721Received(address, address, uint256, bytes memory) public pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
 
     /**
      * @dev Allows a user to withdraw tokens after verifying the Schnorr signature.
@@ -192,6 +210,18 @@ contract Vault is
             if (!success) revert TokenTransferFailed();
         }
         else IERC20Upgradeable(tokenAddress_).safeTransfer(recipient_, amount_);
-        emit EmergencyWithdrawal(tokenAddress_, recipient_, amount_);
+        emit EmergencyWithdrawalERC20(tokenAddress_, recipient_, amount_);
+    }
+
+    function emergencyWithdrawERC721(
+        address token_,
+        uint256 tokenId_,
+        address recipient_
+    ) external onlyRole(EMERGENCY_WITHDRAW_ROLE) nonReentrant {
+        IERC721 token = IERC721(token_);
+        if (token.ownerOf(tokenId_) != address(this)) revert ContractNotTokenOwner();
+        token.safeTransferFrom(address(this), recipient_, tokenId_);
+
+        emit EmergencyWithdrawalERC721(token_, recipient_, tokenId_);
     }
 }
