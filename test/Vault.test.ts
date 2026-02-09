@@ -90,8 +90,13 @@ describe("Vault", function () {
         });
 
         it("should allow the setter to update the public key", async function () {
-            await vault.connect(setter).setPublicKey("0x12712bf86ee0a61a6636bd86c79e5922383c5dd4541062ed4d733a871650a777e9");
-            expect(await vault.pubKey()).to.equal("0x12712bf86ee0a61a6636bd86c79e5922383c5dd4541062ed4d733a871650a777e9");
+            await vault.connect(setter).setPublicKey("0x02712bf86ee0a61a6636bd86c79e5922383c5dd4541062ed4d733a871650a777e9");
+            expect(await vault.pubKey()).to.equal("0x02712bf86ee0a61a6636bd86c79e5922383c5dd4541062ed4d733a871650a777e9");
+        });
+
+        it("should allow the setter to update the public key", async function () {
+            await expect(vault.connect(setter).setPublicKey("0x12712bf86ee0a61a6636bd86c79e5922383c5dd4541062ed4d733a871650a777e9"))
+                .to.be.revertedWithCustomError(vault, "InvalidPublicKey");
         });
 
         it("should not allow the user to set the verifiers", async function () {

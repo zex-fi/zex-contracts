@@ -66,23 +66,45 @@ describe("UserDeposit", function () {
 
             expect(await erc20Token.balanceOf(await vault.getAddress())).to.equal(amount);
             expect(await userDeposit.getStateForToken(erc20Token.getAddress())).to.deep.equal([userDepositBalance - amount, amount]);
+            expect(await userDeposit.cumulativeTokenTransferred(erc20Token.getAddress())).to.equal(amount);
+        });
+
+        it("Should transfer ERC20 tokens", async function () {
+            const amount = ethers.parseEther("10");
+            await expect(userDeposit.connect(operator).transferERC20(erc20Token.getAddress(), amount))
+                .to.emit(userDeposit, "ERC20Transferred")
+                .withArgs(erc20Token.getAddress(), await vault.getAddress(), amount);
+
+            expect(await erc20Token.balanceOf(await vault.getAddress())).to.equal(amount);
+            expect(await userDeposit.cumulativeTokenTransferred(erc20Token.getAddress())).to.equal(amount);
         });
 
         it("Should revert if called by non-transferrer", async function () {
             const amount = ethers.parseEther("10");
             await expect(userDeposit.connect(vault).transferERC20(erc20Token.getAddress(), amount))
                 .to.be.revertedWithCustomError(userDeposit, "ImproperRole");
+            expect(await erc20Token.balanceOf(await vault.getAddress())).to.equal(0);
         });
 
         it("Should revert if transferring zero amount", async function () {
             await expect(userDeposit.connect(operator).transferERC20(erc20Token.getAddress(), 0))
                 .to.be.revertedWithCustomError(userDeposit, "InvalidAmount");
+            expect(await erc20Token.balanceOf(await vault.getAddress())).to.equal(0);
         });
 
         it("Should revert if insufficient balance", async function () {
             const amount = ethers.parseEther("1000"); // More than the contract has
             await expect(userDeposit.connect(operator).transferERC20(erc20Token.getAddress(), amount))
                 .to.be.revertedWithCustomError(userDeposit, "InsufficientBalance");
+            expect(await erc20Token.balanceOf(await vault.getAddress())).to.equal(0);
+        });
+
+        it("Should retrieve StateForERC20", async function () {
+            const amount = ethers.parseEther("10");
+            const userDepositBalance = await erc20Token.balanceOf(userDeposit.getAddress())
+            expect(await userDeposit.getStateForToken(erc20Token.getAddress())).to.deep.equal([userDepositBalance, 0n])
+            await userDeposit.connect(operator).transferERC20(erc20Token.getAddress(), amount)
+            expect(await userDeposit.getStateForToken(erc20Token.getAddress())).to.deep.equal([userDepositBalance - amount, amount])
         });
     });
 

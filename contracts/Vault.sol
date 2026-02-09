@@ -47,6 +47,7 @@ contract Vault is
     // Custom Errors
     error InvalidWithdrawalId(uint256 WithdrawalID);
     error InvalidSignature();
+    error InvalidPublicKey();
     error TokenTransferFailed();
     error ZeroAddress();
     error SignatureExpired();
@@ -87,6 +88,8 @@ contract Vault is
     }
 
     function _setPublicKey(bytes calldata pubKey_) internal {
+        if(pubKey_.length != 33) revert InvalidPublicKey();
+        if(pubKey_[0] != 0x02) revert InvalidPublicKey();
         pubKey = pubKey_;
         emit PublicKeySet(pubKey_);
     }
